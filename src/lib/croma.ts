@@ -139,3 +139,22 @@ export const croma = {
 
 /** Créditos que gasta cada tipo de consulta, para llevar la cuenta en CorridaRadar. */
 export const CREDITOS = { dataset: 1, vivo: 10 } as const;
+
+/* ── Proveedores: directorio, contratos y sanciones ─────────────────── */
+
+export type ProveedorSecop = {
+  id: string; name: string | null; document: string | null; is_entity: boolean | null; is_active: boolean | null;
+  unspsc_description: string | null; department: string | null; city: string | null; phone: string | null; email: string | null;
+  website: string | null; legal_rep_name: string | null; registered_date: string | null;
+};
+export type ContratoSecop = { id: string; entity: string | null; provider: string | null; provider_document: string | null; object: string | null; description: string | null; value: number | null; sign_date: string | null; status: string | null };
+export type SancionSecop = { id: string; entity: string | null; provider: string | null; provider_document: string | null; resolution_number: string | null; value: number | null; published_date: string | null; url: string | null };
+
+export const cromaProveedores = {
+  directorio: (f: { query?: string; document?: string; department?: string; unspsc_code?: string; active?: "yes" | "no" | "any"; per_page?: number; page?: number }) =>
+    post<Pagina<ProveedorSecop>>("/co/secop/suppliers-search/v1", limpio(f)),
+  contratos: (f: { provider_document?: string; query?: string; department?: string; per_page?: number; sort?: string }) =>
+    post<Pagina<ContratoSecop>>("/co/secop/contracts-search/v1", limpio(f)),
+  sanciones: (f: { provider_document?: string; per_page?: number }) =>
+    post<Pagina<SancionSecop>>("/co/secop/sanctions-search/v1", limpio(f)),
+};

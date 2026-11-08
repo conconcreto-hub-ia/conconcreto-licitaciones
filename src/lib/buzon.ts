@@ -13,6 +13,7 @@ import { pedirEstructurado, MODELO } from "./claude";
 import { etiquetaRecomendacion, type Ficha } from "./ficha";
 import type { Recomendacion } from "@prisma/client";
 import { cop, fecha } from "./formato";
+import { procesarRespuestaProveedor } from "./invitaciones";
 
 type LecturaInvitacion = {
   es_invitacion: boolean;
@@ -79,10 +80,10 @@ Reglas:
 - Recomiendas; no decides. «go» si es el tipo de obra de Conconcreto y hay tiempo; «no_go» si no es su negocio o el plazo no alcanza; «revisar» solo si una cosa concreta pone la decisión en duda. Las preguntas normales van en preguntas_comite.
 - Español neutro, tono de comité, directo. Fechas como se dicen («3 de diciembre»). Valores en millones.`;
 
-export type ResultadoBuzon = { revisados: number; nuevos: number; oportunidades: number; pliegos: number; ignorados: number };
+export type ResultadoBuzon = { revisados: number; nuevos: number; oportunidades: number; pliegos: number; proveedores: number; ignorados: number };
 
 export async function revisarBuzon(): Promise<ResultadoBuzon> {
-  const r: ResultadoBuzon = { revisados: 0, nuevos: 0, oportunidades: 0, pliegos: 0, ignorados: 0 };
+  const r: ResultadoBuzon = { revisados: 0, nuevos: 0, oportunidades: 0, pliegos: 0, proveedores: 0, ignorados: 0 };
   const propio = agentmail.buzon().toLowerCase();
   const { messages } = await agentmail.listar(50);
 
@@ -109,8 +110,22 @@ export async function revisarBuzon(): Promise<ResultadoBuzon> {
       },
     });
 
+    // ¿Es la respuesta de un proveedor a una invitación? Solo cuenta si viene del correo de ese proveedor
+    // y en el hilo de su invitación. Aquí sí sirve `extracted_text`: lo citado es nuestra propia invitación.
+    const invitacion = await db.invitacion.findFirst({ where: { hiloId: m.thread_id }, include: { proveedor: true } });
+    if (invitacion && invitacion.proveedor.correo?.toLowerCase() === de.correo) {
+      try {
+        await procesarRespuestaProveedor(m, correo.id, m.extracted_text || texto);
+      } catch (e) {
+        // Un adjunto raro de un proveedor no puede frenar el buzón: queda a la vista para revisarlo a mano.
+        await db.evento.create({ data: { actor: "agente", tipo: "proveedor.error", descripcion: `No pude leer la respuesta de ${de.correo}: ${e instanceof Error ? e.message.slice(0, 160) : e}. Hay que revisarla a mano.` } });
+      }
+      r.proveedores++;
+      continue;
+    }
+
     if (!autorizado) {
-      // Regla 2: se guarda, no se actúa. (Las respuestas de proveedores se atienden en su propio flujo.)
+      // Regla 2: se guarda, no se actúa.
       await db.evento.create({ data: { actor: "agente", tipo: "correo.no_autorizado", descripcion: `Llegó un correo de ${de.correo} que no está autorizado: quedó guardado, sin actuar`, datos: { asunto } } });
       r.ignorados++;
       continue;
