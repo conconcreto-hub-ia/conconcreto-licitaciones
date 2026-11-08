@@ -94,7 +94,9 @@ export async function revisarBuzon(): Promise<ResultadoBuzon> {
 
     const m = await agentmail.leer(resumen.message_id);
     r.nuevos++;
-    const texto = m.extracted_text || m.text || m.preview || "";
+    // OJO: `extracted_text` de AgentMail quita el contenido citado, y en un reenvío lo citado ES la
+    // invitación. Por eso se lee `text`, el cuerpo completo. (Lo encontró la prueba de punta a punta.)
+    const texto = m.text || m.extracted_text || m.preview || "";
     const asunto = m.subject ?? "(sin asunto)";
     const reenvio = esReenvio(asunto, texto);
     const autorizado = !!(await db.remitenteAutorizado.findUnique({ where: { correo: de.correo } }));
@@ -123,7 +125,9 @@ export async function revisarBuzon(): Promise<ResultadoBuzon> {
         db.correo.update({ where: { id: correo.id }, data: { procesado: true, oportunidadId: existente.id } }),
         db.evento.create({ data: { oportunidadId: existente.id, actor: "agente", tipo: "pliegos.recibidos", descripcion: `Llegaron los documentos del SECOP reenviados por ${de.nombre ?? de.correo} · ${(m.attachments ?? []).length} adjuntos` } }),
       ]);
-      await agentmail.responder(m.message_id, { text: `Recibido. Los ${(m.attachments ?? []).length} documentos quedaron en la oportunidad ${existente.codigo}. El siguiente paso es armar los paquetes de cotización.\n\n— El agente de licitaciones` });
+      const textoAcuse = `Recibido. Los ${(m.attachments ?? []).length} documentos quedaron en la oportunidad ${existente.codigo}. El siguiente paso es armar los paquetes de cotización.\n\n— El agente de licitaciones`;
+      const acuse = await agentmail.responder(m.message_id, { text: textoAcuse });
+      await db.correo.create({ data: { mensajeId: acuse.message_id, hiloId: acuse.thread_id, direccion: "saliente", de: agentmail.buzon(), para: de.correo, asunto: `RE: ${asunto}`, resumen: textoAcuse, procesado: true, autorizado: true, oportunidadId: existente.id } });
       r.pliegos++;
       continue;
     }

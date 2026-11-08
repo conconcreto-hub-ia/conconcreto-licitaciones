@@ -39,7 +39,7 @@ export default async function FichaOportunidad({ params }: { params: Promise<{ i
           <h1 className="mt-3 max-w-[900px] text-[30px] font-extrabold leading-[1.1] text-white sm:text-[38px]">{tituloDe(o)}</h1>
           <p className="mt-2 text-[15px] text-white/70">{o.entidad}{o.municipio ? ` · ${o.municipio}` : ""}{o.departamento ? `, ${o.departamento}` : ""}</p>
           <div className="mt-7 flex flex-wrap gap-x-12 gap-y-6">
-            <Cifra oscuro valor={copCorto(o.valorEstimado)} rotulo="Presupuesto oficial" nota={cop(o.valorEstimado)} />
+            <Cifra oscuro valor={copCorto(o.valorEstimado)} rotulo={o.origen === "secop" ? "Presupuesto oficial" : "Presupuesto de referencia del cliente"} nota={cop(o.valorEstimado)} />
             <Cifra oscuro valor={o.fechaCierre ? fecha(o.fechaCierre) : "—"} rotulo={cierre(o.fechaCierre)} />
             {f?.mercado && <Cifra oscuro valor={pct(f.mercado.entidad.descuentoMediano)} rotulo="Descuento con que se gana" nota={`mediana de ${f.mercado.entidad.obrasAdjudicadas} obras de la entidad`} />}
             {f?.mercado && <Cifra oscuro valor={f.mercado.entidad.oferentesPromedio?.toLocaleString("es-CO") ?? "—"} rotulo="Oferentes en promedio" nota="en las obras de esta entidad" />}
@@ -171,7 +171,7 @@ export default async function FichaOportunidad({ params }: { params: Promise<{ i
                   <Boton type="submit" name="decision" value="aprobar" variante="primario">Presentarse</Boton>
                   <Boton type="submit" name="decision" value="descartar" variante="peligro">Descartar</Boton>
                 </div>
-                <p className="text-[12.5px] leading-snug text-tinta-3">Al aprobar, el siguiente paso es reenviar los pliegos del SECOP al buzón del agente para armar los paquetes.</p>
+                <p className="text-[12.5px] leading-snug text-tinta-3">{o.origen === "secop" ? "Al aprobar, el siguiente paso es reenviar los pliegos del SECOP al buzón del agente, con el código del proceso en el asunto." : "Al aprobar, el siguiente paso es armar los paquetes de cotización con los documentos que llegaron."}</p>
               </form>
             )}
           </Tarjeta>

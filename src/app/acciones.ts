@@ -4,31 +4,11 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { correrRadar } from "@/lib/radar";
 import { generarFicha } from "@/lib/ficha";
-
-// Quién decide. Mientras no haya inicio de sesión, el comité firma con este nombre.
-const COMITE = "Comité de licitaciones";
+import { decidir, type Decision } from "@/lib/comite";
 
 export async function decidirEnComite(formData: FormData) {
   const id = String(formData.get("id"));
-  const decision = String(formData.get("decision")) as "aprobar" | "descartar" | "llevar";
-  const nota = String(formData.get("nota") ?? "").trim();
-
-  if (decision === "descartar" && !nota) throw new Error("Para descartar hay que dejar la razón.");
-
-  const estado = decision === "aprobar" ? "aprobada" : decision === "descartar" ? "descartada" : "en_comite";
-  await db.$transaction([
-    db.oportunidad.update({
-      where: { id },
-      data: { estado, decision: nota || null, decididoPor: decision === "llevar" ? null : COMITE, decididoEn: decision === "llevar" ? null : new Date() },
-    }),
-    db.evento.create({
-      data: {
-        oportunidadId: id, actor: "persona",
-        tipo: decision === "aprobar" ? "comite.aprobo" : decision === "descartar" ? "comite.descarto" : "comite.agendo",
-        descripcion: decision === "aprobar" ? `El comité aprobó presentarse${nota ? ` · ${nota}` : ""}` : decision === "descartar" ? `El comité la descartó · ${nota}` : "Se llevó al comité",
-      },
-    }),
-  ]);
+  await decidir(id, String(formData.get("decision")) as Decision, String(formData.get("nota") ?? ""));
   revalidatePath("/");
   revalidatePath(`/oportunidades/${id}`);
 }
