@@ -20,7 +20,7 @@ export type PaqueteVista = {
 
 const TIPO = { suministro: "Suministro", servicio: "Servicio", mano_de_obra: "Mano de obra" } as const;
 
-export function Paquetes(props: { oportunidadId: string; tieneFormulario: boolean; actividades: number; paquetes: PaqueteVista[]; controlId: string | null }) {
+export function Paquetes(props: { puedeEditar: boolean; oportunidadId: string; tieneFormulario: boolean; actividades: number; paquetes: PaqueteVista[]; controlId: string | null }) {
   const router = useRouter();
   const [pendiente, empezar] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export function Paquetes(props: { oportunidadId: string; tieneFormulario: boolea
         <Vacio
           icono={<IconoPaquete className="size-5" />}
           titulo="Listo para armar los paquetes"
-          accion={<Boton variante="primario" disabled={pendiente} onClick={() => correr(() => proponerPaquetesAhora(props.oportunidadId))}>{pendiente ? "Leyendo el formulario y agrupando…" : "Proponer paquetes"}</Boton>}
+          accion={!props.puedeEditar ? undefined : <Boton variante="primario" disabled={pendiente} onClick={() => correr(() => proponerPaquetesAhora(props.oportunidadId))}>{pendiente ? "Leyendo el formulario y agrupando…" : "Proponer paquetes"}</Boton>}
         >
           El agente lee el formulario de cantidades y agrupa las actividades según qué proveedor las cotiza. Ninguna queda por fuera, y tú confirmas antes de que salga nada.
         </Vacio>
@@ -69,8 +69,8 @@ export function Paquetes(props: { oportunidadId: string; tieneFormulario: boolea
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {!confirmados && <Boton chico variante="fantasma" disabled={pendiente} onClick={() => correr(() => proponerPaquetesAhora(props.oportunidadId))}>Volver a proponer</Boton>}
-          {!confirmados && <Boton chico variante="primario" disabled={pendiente || !!porAsignar} onClick={() => correr(() => confirmarPaquetesAhora(props.oportunidadId))}>{pendiente ? "Trabajando…" : "Confirmar y generar BIMBAU"}</Boton>}
+          {!confirmados && props.puedeEditar && <Boton chico variante="fantasma" disabled={pendiente} onClick={() => correr(() => proponerPaquetesAhora(props.oportunidadId))}>Volver a proponer</Boton>}
+          {!confirmados && props.puedeEditar && <Boton chico variante="primario" disabled={pendiente || !!porAsignar} onClick={() => correr(() => confirmarPaquetesAhora(props.oportunidadId))}>{pendiente ? "Trabajando…" : "Confirmar y generar BIMBAU"}</Boton>}
           {confirmados && props.controlId && <a href={`/api/archivos/${props.controlId}`} className="inline-flex h-8 items-center gap-2 rounded-ctl border border-linea bg-papel px-3 font-display text-[13px] font-semibold hover:bg-fondo"><IconoDocumento />Control de asignación</a>}
         </div>
       </div>
@@ -107,7 +107,7 @@ export function Paquetes(props: { oportunidadId: string; tieneFormulario: boolea
                             <td className="w-12 py-1 font-mono text-tinta-3">{l.codigo}</td>
                             <td className="py-1 pr-2">{l.descripcion}{l.compartida && <span className="ml-1.5 text-[11px] font-semibold text-[#8a5a00]">· compartida</span>}</td>
                             <td className="tabular whitespace-nowrap py-1 text-right text-tinta-2">{l.cantidad?.toLocaleString("es-CO")} {l.unidad}</td>
-                            {!confirmados && (
+                            {!confirmados && props.puedeEditar && (
                               <td className="w-8 py-1 pl-1">
                                 <span className="relative grid size-6 place-items-center rounded-ctl border border-linea bg-papel text-tinta-3 hover:border-verde hover:text-verde-profundo">
                                   <IconoFlecha className="pointer-events-none size-3.5" />

@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { exigirSesion } from "@/lib/auth/sesion";
+import { puede } from "@/lib/auth/permisos";
 import Link from "next/link";
 import { Barra } from "@/components/barra";
 import { Aja, Boton, Chip, Cifra, Contenedor, Dato, Encaje, Insignia, SeccionEt, Tarjeta, Vacio } from "@/components/ui";
@@ -18,6 +20,7 @@ export const dynamic = "force-dynamic";
 const pct = (x: number | null | undefined) => (x === null || x === undefined ? "—" : `${(x * 100).toLocaleString("es-CO", { maximumFractionDigits: 1 })} %`);
 
 export default async function FichaOportunidad({ params }: { params: Promise<{ id: string }> }) {
+  const yo = await exigirSesion();
   const { id } = await params;
   const o = await db.oportunidad.findUnique({ where: { id }, include: { eventos: { orderBy: { createdAt: "desc" } }, criterio: true } });
   if (!o) notFound();
@@ -71,10 +74,10 @@ export default async function FichaOportunidad({ params }: { params: Promise<{ i
       <Contenedor className="grid gap-8 py-9 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-8">
           {enCotizacion && (
-            <Paquetes oportunidadId={o.id} tieneFormulario={formularios > 0} actividades={nActividades} paquetes={paquetes} controlId={archivos.find((a) => a.tipo === "control")?.id ?? null} />
+            <Paquetes puedeEditar={puede(yo.rol, "paquetes.editar")} oportunidadId={o.id} tieneFormulario={formularios > 0} actividades={nActividades} paquetes={paquetes} controlId={archivos.find((a) => a.tipo === "control")?.id ?? null} />
           )}
           {!f ? (
-            <Vacio icono={<IconoComite className="size-5" />} titulo="Todavía no tiene ficha" accion={
+            <Vacio icono={<IconoComite className="size-5" />} titulo="Todavía no tiene ficha" accion={!puede(yo.rol, "ficha.rehacer") ? undefined :
               <form action={rehacerFicha}><input type="hidden" name="id" value={o.id} /><Boton variante="primario" type="submit">Armar la ficha</Boton></form>
             }>El agente lee el mercado en el SECOP y prepara la recomendación para el comité.</Vacio>
           ) : (
@@ -89,7 +92,7 @@ export default async function FichaOportunidad({ params }: { params: Promise<{ i
                       <Encaje valor={f.encaje} ancho="w-32" />
                     </div>
                   </div>
-                  <form action={rehacerFicha}><input type="hidden" name="id" value={o.id} /><Boton chico variante="fantasma" type="submit">Rehacer ficha</Boton></form>
+                  {puede(yo.rol, "ficha.rehacer") && <form action={rehacerFicha}><input type="hidden" name="id" value={o.id} /><Boton chico variante="fantasma" type="submit">Rehacer ficha</Boton></form>}
                 </div>
                 <p className="mt-4 text-[16px] leading-relaxed text-tinta">{f.resumen}</p>
               </Tarjeta>
@@ -188,7 +191,7 @@ export default async function FichaOportunidad({ params }: { params: Promise<{ i
                 {o.decididoEn && <p className="mt-2 text-[12.5px] text-tinta-3">{o.decididoPor} · {fechaHora(o.decididoEn)}</p>}
               </div>
             ) : (
-              <FormComite id={o.id} ayuda={o.origen === "secop" ? "Al aprobar, el siguiente paso es reenviar los pliegos del SECOP al buzón del agente, con el código del proceso en el asunto." : "Al aprobar, el siguiente paso es armar los paquetes de cotización con los documentos que llegaron."} />
+              !puede(yo.rol, "comite.decidir") ? <p className="mt-3 text-[13.5px] text-tinta-2">La decisión la toma el comité. Tu rol puede ver la ficha, no decidir.</p> : <FormComite id={o.id} ayuda={o.origen === "secop" ? "Al aprobar, el siguiente paso es reenviar los pliegos del SECOP al buzón del agente, con el código del proceso en el asunto." : "Al aprobar, el siguiente paso es armar los paquetes de cotización con los documentos que llegaron."} />
             )}
           </Tarjeta>
 

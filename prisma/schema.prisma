@@ -313,3 +313,49 @@ model CorridaRadar {
   error       String?  @db.Text
   createdAt   DateTime @default(now())
 }
+
+/* ── Acceso ─────────────────────────────────────────────────────────── */
+
+enum Rol {
+  admin         // todo, más usuarios
+  licitaciones  // radar, buzón, paquetes, proveedores, invitaciones
+  comite        // decide si se cotiza
+  consulta      // solo ver
+}
+
+model Usuario {
+  id               String    @id @default(cuid())
+  correo           String    @unique
+  nombre           String
+  rol              Rol       @default(consulta)
+  hash             String    // scrypt: sal:hash, en hex
+  activo           Boolean   @default(true)
+  debeCambiarClave Boolean   @default(true) // la clave temporal se cambia al primer ingreso
+  ultimoIngreso    DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  sesiones Sesion[]
+}
+
+/// La sesión que manda. La cookie solo lleva su id firmado: si se borra la fila (o el usuario se
+/// desactiva), la sesión muere aunque la cookie siga viva.
+model Sesion {
+  id        String   @id @default(cuid())
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  expiraEn  DateTime
+  createdAt DateTime @default(now())
+
+  @@index([usuarioId])
+}
+
+/// Para frenar a quien prueba claves: 5 fallos en 15 minutos bloquean ese correo un rato.
+model IntentoIngreso {
+  id        String   @id @default(cuid())
+  correo    String
+  exito     Boolean
+  createdAt DateTime @default(now())
+
+  @@index([correo, createdAt])
+}

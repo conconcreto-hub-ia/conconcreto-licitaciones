@@ -1,5 +1,6 @@
 // La referencia viva del sistema de diseño. Si una pieza no está aquí, todavía no existe.
 
+import { exigirSesion } from "@/lib/auth/sesion";
 import { Barra } from "@/components/barra";
 import { Aja, Boton, Chip, Cifra, Contenedor, Dato, Encabezado, Encaje, Insignia, Marca, SeccionEt, Tarjeta, Vacio } from "@/components/ui";
 import { IconoRadar, IconoCorreo, IconoComite, IconoPaquete, IconoProveedor, IconoCuadro, IconoAgente, IconoEscudo, IconoTendencia, IconoFlecha } from "@/components/iconos";
@@ -10,7 +11,8 @@ const COLORES = [
   ["oro", "#efbf01"], ["naranja", "#d8800d"], ["tinta", "#141a16"], ["tinta-2", "#48514b"], ["tinta-3", "#7b847e"], ["linea", "#e2e7e3"], ["fondo", "#f6f8f5"],
 ];
 
-export default function Sistema() {
+export default async function Sistema() {
+  const yo = await exigirSesion();
   return (
     <>
       <Barra />

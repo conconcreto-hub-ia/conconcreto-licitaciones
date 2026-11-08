@@ -37,11 +37,12 @@ Oportunidad + ficha + acuse en el hilo     │
 npm install
 npx prisma db push && npx prisma generate
 npx tsx scripts/sembrar.ts        # criterios y remitentes autorizados
+npx tsx scripts/crear-usuario.ts <correo> "<Nombre>" admin   # el primer administrador (imprime su clave temporal)
 npm run dev                        # http://localhost:3010
 ```
 
 `.env.local` (fuera de git): `DATABASE_URL`, `ANTHROPIC_API_KEY`, `CROMA_API_KEY`, `AGENTMAIL_API_KEY`,
-`AGENTMAIL_INBOX`, `ENVIO_DOMINIOS_PERMITIDOS`, `CRON_SECRET`, `AGENTMAIL_WEBHOOK_TOKEN`.
+`AGENTMAIL_INBOX`, `ENVIO_DOMINIOS_PERMITIDOS`, `CRON_SECRET`, `AGENTMAIL_WEBHOOK_TOKEN`, `SESION_SECRETO`.
 
 **Después de cambiar `prisma/schema.prisma`: `npx prisma generate` y reiniciar el servidor.** El cliente de
 Prisma queda cargado en memoria y un servidor viejo sigue con el cliente viejo.
@@ -68,6 +69,21 @@ Qué prueba cada cosa: `scripts/README.md`.
 - **`extracted_text` de AgentMail quita lo citado.** En un reenvío lo citado ES la invitación: se lee `text`.
 - **Responder a un correo propio sin `to` se lo manda al mismo buzón.** Los recordatorios dicen a quién van.
 
+## El acceso
+
+- **Todo está cerrado** salvo `/ingresar`, `/api/cron/*` (piden `CRON_SECRET`) y `/api/webhooks/*` (piden el
+  token de AgentMail). Una ruta nueva nace protegida (`src/proxy.ts`).
+- **Usuarios con correo y clave**, en `/usuarios` (solo el administrador). La clave temporal se muestra una vez
+  y se cambia en el primer ingreso. Mínimo 10 caracteres con letras y números; 5 fallos en 15 minutos bloquean.
+- **Roles** (`src/lib/auth/permisos.ts`): administrador · licitaciones (radar, buzón, paquetes, proveedores,
+  invitaciones) · comité (decide) · consulta (solo ver).
+- **La sesión de verdad está en la base.** La cookie solo lleva el id firmado: el proxy la revisa rápido, y
+  cada página y cada acción la confirma contra la base. Desactivar a alguien cierra sus sesiones al instante.
+- **Cada acción de servidor exige su permiso** (`exigir()` en `src/app/acciones.ts`), aunque la pantalla ya
+  esconda el botón: una acción de servidor se puede llamar directamente. Se probó así, con el rol de consulta.
+- **La bitácora firma con el nombre** de quien aprobó, confirmó o envió.
+- Después, si TI lo habilita: inicio con la cuenta de Microsoft 365 de Conconcreto (Entra ID).
+
 ## Las rutinas
 
 | Qué | Cuándo | Desplegado | En un computador |
@@ -81,8 +97,8 @@ base (Neon) pueda dormir: se cobra por hora encendida.
 
 ## Antes de desplegar
 
-1. **Inicio de sesión.** Hoy no hay: cualquiera con el enlace vería las oportunidades y podría enviar
-   invitaciones. Va primero.
+1. **Crear el primer administrador** en la base de producción con `scripts/crear-usuario.ts`, y definir
+   `SESION_SECRETO` (48+ caracteres) en el entorno de producción.
 2. **Dónde vive.** Con datos de clientes y proveedores de una empresa que cotiza en bolsa, lo decide TI de
    Conconcreto (su infraestructura, o Vercel + Neon con aprobación).
 3. **Abrir el envío** a los dominios reales, a propósito, y registrar el webhook de AgentMail.

@@ -1,4 +1,6 @@
 import { Barra } from "@/components/barra";
+import { exigirSesion } from "@/lib/auth/sesion";
+import { puede } from "@/lib/auth/permisos";
 import { Chip, Contenedor, Encabezado, Insignia, Tarjeta, Vacio } from "@/components/ui";
 import { IconoProveedor, IconoEscudo } from "@/components/iconos";
 import { db } from "@/lib/db";
@@ -8,6 +10,7 @@ import { haceCuanto } from "@/lib/formato";
 export const dynamic = "force-dynamic";
 
 export default async function Proveedores() {
+  const yo = await exigirSesion();
   const proveedores = await db.proveedor.findMany({
     orderBy: [{ fuente: "asc" }, { nombre: "asc" }],
     include: { invitaciones: { select: { estado: true } } },

@@ -1,4 +1,6 @@
 import { Barra } from "@/components/barra";
+import { exigirSesion } from "@/lib/auth/sesion";
+import { puede } from "@/lib/auth/permisos";
 import { Cifra, Contenedor, Encabezado, SeccionEt, Vacio, BotonLink } from "@/components/ui";
 import { IconoRadar } from "@/components/iconos";
 import { FilaOportunidad, tituloDe } from "@/components/oportunidad";
@@ -9,6 +11,7 @@ import { copCorto, diasHasta, haceCuanto } from "@/lib/formato";
 export const dynamic = "force-dynamic";
 
 export default async function Inicio() {
+  const yo = await exigirSesion();
   const [oportunidades, ultimaCorrida, paquetesDb] = await Promise.all([
     db.oportunidad.findMany({ orderBy: [{ encaje: { sort: "desc", nulls: "last" } }, { fechaCierre: "asc" }] }),
     db.corridaRadar.findFirst({ orderBy: { createdAt: "desc" } }),

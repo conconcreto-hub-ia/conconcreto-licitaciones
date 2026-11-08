@@ -60,7 +60,7 @@ const ESTILO_BOTON: Record<Variante, string> = {
 
 const claseBoton = (v: Variante, chico?: boolean) =>
   cx(
-    "inline-flex items-center justify-center gap-2 rounded-ctl font-display font-semibold transition-[background,border-color,filter] duration-150 disabled:pointer-events-none disabled:opacity-50",
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-ctl font-display font-semibold transition-[background,border-color,filter] duration-150 disabled:pointer-events-none disabled:opacity-50",
     chico ? "h-8 px-3 text-[13px]" : "h-10 px-4 text-[14px]",
     ESTILO_BOTON[v],
   );

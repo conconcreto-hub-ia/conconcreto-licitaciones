@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { exigirSesion } from "@/lib/auth/sesion";
+import { puede } from "@/lib/auth/permisos";
 import { Barra } from "@/components/barra";
 import { Contenedor, Encabezado, Insignia, Tarjeta, Vacio } from "@/components/ui";
 import { IconoCorreo, IconoReenvio, IconoAgente, IconoEscudo } from "@/components/iconos";
@@ -9,6 +11,7 @@ import { fechaHora } from "@/lib/formato";
 export const dynamic = "force-dynamic";
 
 export default async function Buzon() {
+  const yo = await exigirSesion();
   const correos = await db.correo.findMany({ orderBy: { recibidoEn: "desc" }, take: 60, include: { oportunidad: { select: { id: true, codigo: true } } } });
   const buzon = process.env.AGENTMAIL_INBOX;
 
@@ -24,7 +27,7 @@ export default async function Buzon() {
                 Desde tu Outlook, reenvía la invitación del cliente a <span className="font-mono text-white">{buzon}</span>. El agente la lee, la registra con su ficha y te contesta en el mismo hilo con lo que entendió y lo que falta para cotizar.
               </p>
             </div>
-            <BotonBuzon />
+            {puede(yo.rol, "buzon.revisar") && <BotonBuzon />}
           </div>
         </Contenedor>
       </Barra>

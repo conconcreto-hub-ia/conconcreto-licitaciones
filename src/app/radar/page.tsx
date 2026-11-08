@@ -1,4 +1,6 @@
 import { Barra } from "@/components/barra";
+import { exigirSesion } from "@/lib/auth/sesion";
+import { puede } from "@/lib/auth/permisos";
 import { Cifra, Contenedor, Encabezado, Insignia, SeccionEt, Tarjeta, Vacio } from "@/components/ui";
 import { IconoRadar } from "@/components/iconos";
 import { BotonRadar } from "./boton";
@@ -8,6 +10,7 @@ import { fechaHora, haceCuanto } from "@/lib/formato";
 export const dynamic = "force-dynamic";
 
 export default async function Radar() {
+  const yo = await exigirSesion();
   const [corridas, porOrigen, criterios] = await Promise.all([
     db.corridaRadar.findMany({ orderBy: { createdAt: "desc" }, take: 15 }),
     db.oportunidad.count({ where: { origen: "secop" } }),
@@ -26,7 +29,7 @@ export default async function Radar() {
               <h1 className="mt-4 max-w-[760px] text-[34px] font-extrabold leading-[1.08] text-white sm:text-[42px]">El radar lee el SECOP <span className="dorado">antes que nadie</span></h1>
               <p className="mt-3 max-w-[640px] text-[15px] text-white/70">Cada mañana busca las obras publicadas desde la última vez, se queda con las que encajan con los criterios de Conconcreto y les arma la ficha de go/no-go.</p>
             </div>
-            <BotonRadar />
+            {puede(yo.rol, "radar.correr") && <BotonRadar />}
           </div>
           <div className="mt-8 flex flex-wrap gap-x-12 gap-y-6">
             <Cifra oscuro valor={ultima ? haceCuanto(ultima.createdAt) : "—"} rotulo="Última corrida" />

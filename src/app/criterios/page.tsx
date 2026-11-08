@@ -1,4 +1,6 @@
 import { Barra } from "@/components/barra";
+import { exigirSesion } from "@/lib/auth/sesion";
+import { puede } from "@/lib/auth/permisos";
 import { Chip, Contenedor, Encabezado, Insignia, Tarjeta } from "@/components/ui";
 import { db } from "@/lib/db";
 import { cop } from "@/lib/formato";
@@ -6,6 +8,7 @@ import { cop } from "@/lib/formato";
 export const dynamic = "force-dynamic";
 
 export default async function Criterios() {
+  const yo = await exigirSesion();
   const criterios = await db.criterio.findMany({ orderBy: { nombre: "asc" }, include: { _count: { select: { oportunidades: true } } } });
   const remitentes = await db.remitenteAutorizado.findMany({ orderBy: { nombre: "asc" } });
 

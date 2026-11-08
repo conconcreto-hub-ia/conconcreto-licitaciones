@@ -182,10 +182,11 @@ export async function procesarRespuestaProveedor(m: MensajeAM, correoId: string,
 
 /* ── Recordatorios ─────────────────────────────────────────────────── */
 
-export async function enviarRecordatorios(horasSinRespuesta = 48) {
+/** Sin paqueteId: todos los paquetes (la rutina diaria). Con paqueteId: solo ese (el botón). */
+export async function enviarRecordatorios(horasSinRespuesta = 48, paqueteId?: string) {
   const corte = new Date(Date.now() - horasSinRespuesta * 3_600_000);
   const pendientes = await db.invitacion.findMany({
-    where: { estado: { in: ["enviada", "recordada"] }, recordatorios: { lt: MAX_RECORDATORIOS }, ultimaActividad: { lte: corte } },
+    where: { estado: { in: ["enviada", "recordada"] }, recordatorios: { lt: MAX_RECORDATORIOS }, ultimaActividad: { lte: corte }, ...(paqueteId ? { paqueteId } : {}) },
     include: { proveedor: true, paquete: true },
   });
   let enviados = 0;

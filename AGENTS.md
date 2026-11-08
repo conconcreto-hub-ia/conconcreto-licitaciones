@@ -14,3 +14,5 @@ Lee `README.md` antes de tocar nada: ahí están el flujo, las reglas que no se 
 - Etiquetas de los enums: `src/lib/etiquetas.ts`.
 - Una cifra que lea el comité la calcula el código, no el modelo.
 - Español neutro con tuteo. Nada de voseo en textos ni en prompts.
+- Toda acción de servidor nueva empieza con `await exigir("<permiso>")` (src/lib/auth/sesion.ts). Esconder el botón no protege nada.
+- Toda página nueva empieza con `await exigirSesion()`. El proxy solo hace la revisión rápida.

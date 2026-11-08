@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { exigirSesion } from "@/lib/auth/sesion";
+import { puede } from "@/lib/auth/permisos";
 import { notFound } from "next/navigation";
 import { Barra } from "@/components/barra";
 import { Aja, Cifra, Contenedor, Encabezado, Insignia, SeccionEt, Tarjeta, Vacio } from "@/components/ui";
@@ -14,6 +16,7 @@ export const dynamic = "force-dynamic";
 const pesos = (n: number | null) => (n === null ? "—" : `$${Math.round(n).toLocaleString("es-CO")}`);
 
 export default async function PaquetePagina({ params }: { params: Promise<{ id: string }> }) {
+  const yo = await exigirSesion();
   const { id } = await params;
   const existe = await db.paquete.findUnique({ where: { id }, select: { id: true } });
   if (!existe) notFound();
@@ -43,7 +46,7 @@ export default async function PaquetePagina({ params }: { params: Promise<{ id: 
               <h1 className="mt-2 max-w-[760px] text-[30px] font-extrabold leading-[1.1] text-white sm:text-[38px]">{paquete.nombre}</h1>
               {paquete.porque && <p className="mt-2 max-w-[640px] text-[15px] text-white/70">{paquete.porque}</p>}
             </div>
-            <AccionesPaquete paqueteId={id} borradores={enviables.length} pendientes={pendientes} />
+            {puede(yo.rol, "proveedores.invitar") && <AccionesPaquete paqueteId={id} borradores={enviables.length} pendientes={pendientes} />}
           </div>
           <div className="mt-7 flex flex-wrap gap-x-12 gap-y-6">
             <Cifra oscuro valor={totalItems} rotulo="Ítems del paquete" />
@@ -96,7 +99,7 @@ export default async function PaquetePagina({ params }: { params: Promise<{ id: 
                         <td className="tabular px-3 py-3 text-right">
                           {i.cotizacion ? <><div className="font-semibold">{cop(i.cotizacion.valorTotal)}</div><div className="text-[12px] text-tinta-3">{i.cotizacion.plazoDias ? `${i.cotizacion.plazoDias} días` : ""}</div></> : <span className="text-tinta-3">—</span>}
                         </td>
-                        <td className="px-2 py-3">{i.estado === "borrador" && <QuitarInvitacion invitacionId={i.id} paqueteId={id} />}</td>
+                        <td className="px-2 py-3">{i.estado === "borrador" && puede(yo.rol, "proveedores.invitar") && <QuitarInvitacion invitacionId={i.id} paqueteId={id} />}</td>
                       </tr>
                     );
                   })}
