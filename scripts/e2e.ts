@@ -15,6 +15,7 @@ import path from "node:path";
 import { db } from "../src/lib/db";
 import { revisarBuzon } from "../src/lib/buzon";
 import { decidir } from "../src/lib/comite";
+import { proponerPaquetes, confirmarPaquetes } from "../src/lib/paquetes";
 import type { MensajeAM } from "../src/lib/agentmail";
 
 const JHON = "prueba-jhon-cc@agentmail.to";
@@ -167,6 +168,24 @@ Gerente de Proyectos · Inversiones Altavista S.A.S.`;
     check(docs >= 1, "Los documentos quedaron en esa oportunidad", `${docs}`);
     const acusePliegos = await esperarEnBuzon(JHON, (m) => m.from.includes(AGENTE) && (m.subject ?? "").includes(`Pliegos ${secop.codigo}`), 60);
     check(!!acusePliegos, "Jhon recibió el acuse de los pliegos");
+  }
+
+  // ── 5b · Paquetes de la invitación ──────────────────────────────────
+  console.log("\n5b · Paquetes de cotización de la invitación");
+  const inv = await db.oportunidad.findFirst({ where: { origen: "invitacion" } });
+  if (inv) {
+    await decidir(inv.id, "aprobar", "Prueba de punta a punta: paquetes.");
+    const prop = await proponerPaquetes(inv.id);
+    console.log(`   ${JSON.stringify(prop)}`);
+    check(prop.actividades === 18, "Leyó las 18 actividades del formulario de Altavista");
+    check(prop.sinAsignar === 0, "Ninguna actividad quedó sin paquete");
+    const lineas = await db.paqueteActividad.findMany({ where: { paquete: { oportunidadId: inv.id } }, select: { actividadId: true } });
+    const actividades = await db.actividad.findMany({ where: { oportunidadId: inv.id, esCapitulo: false }, select: { id: true } });
+    check(actividades.every((a) => lineas.some((l) => l.actividadId === a.id)), "Verificado por código: cada actividad está en al menos un paquete");
+    const conf = await confirmarPaquetes(inv.id, "Prueba");
+    const archivos = await db.archivo.count({ where: { oportunidadId: inv.id } });
+    check(archivos === prop.paquetes + 1, "Un BIMBAU por paquete más el control", `${archivos} archivos (${conf.archivos})`);
+    check((await db.oportunidad.findUniqueOrThrow({ where: { id: inv.id } })).estado === "en_cotizacion", "La oportunidad pasó a «Cotizando»");
   }
 
   // ── 6 · Idempotencia ─────────────────────────────────────────────────

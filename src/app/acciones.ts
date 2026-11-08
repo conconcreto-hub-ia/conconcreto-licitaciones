@@ -39,3 +39,19 @@ export async function revisarBuzonAhora() {
   revalidatePath("/buzon");
   return r;
 }
+
+export async function proponerPaquetesAhora(oportunidadId: string) {
+  const { proponerPaquetes } = await import("@/lib/paquetes");
+  const r = await proponerPaquetes(oportunidadId);
+  revalidatePath(`/oportunidades/${oportunidadId}`);
+  return r;
+}
+
+export async function confirmarPaquetesAhora(oportunidadId: string) {
+  const { confirmarPaquetes } = await import("@/lib/paquetes");
+  // Mientras no haya inicio de sesión, confirma «Licitaciones».
+  const r = await confirmarPaquetes(oportunidadId, "Licitaciones");
+  revalidatePath(`/oportunidades/${oportunidadId}`);
+  revalidatePath("/");
+  return r;
+}

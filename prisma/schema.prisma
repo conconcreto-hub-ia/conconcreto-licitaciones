@@ -115,6 +115,8 @@ model Oportunidad {
   updatedAt        DateTime          @updatedAt
 
   paquetes  Paquete[]
+  actividades Actividad[]
+  archivos  Archivo[]
   eventos   Evento[]
   correos   Correo[]
   documentos Documento[]
@@ -135,20 +137,73 @@ model Documento {
   createdAt     DateTime    @default(now())
 }
 
-model Paquete {
+enum EstadoPaquete {
+  propuesto   // lo propuso el agente, falta que Jhon lo confirme
+  confirmado  // Jhon lo confirmó y salió su BIMBAU
+}
+
+/// Una línea del formulario de cantidades del cliente, tal como viene. No se fusiona ni se renumera.
+model Actividad {
   id            String      @id @default(cuid())
   oportunidadId String
   oportunidad   Oportunidad @relation(fields: [oportunidadId], references: [id], onDelete: Cascade)
-  tipo          TipoPaquete
-  nombre        String
-  actividades   Int         @default(0)
-  fechaLimite   DateTime?   // hasta cuándo reciben cotizaciones los proveedores
-  notas         String?     @db.Text
+  hoja          String
+  fila          Int
+  orden         Int
+  codigo        String?
+  descripcion   String      @db.Text
+  unidad        String?
+  cantidad      Float?
+  esCapitulo    Boolean     @default(false)
+  capitulo      String?     // el capítulo bajo el que está
   createdAt     DateTime    @default(now())
 
+  paquetes PaqueteActividad[]
+
+  @@unique([oportunidadId, hoja, fila])
+  @@index([oportunidadId, orden])
+}
+
+model Paquete {
+  id            String        @id @default(cuid())
+  oportunidadId String
+  oportunidad   Oportunidad   @relation(fields: [oportunidadId], references: [id], onDelete: Cascade)
+  tipo          TipoPaquete
+  nombre        String
+  estado        EstadoPaquete @default(propuesto)
+  porque        String?       @db.Text // por qué estas actividades van juntas (qué proveedor las cotiza)
+  actividades   Int           @default(0)
+  fechaLimite   DateTime?     // hasta cuándo reciben cotizaciones los proveedores
+  notas         String?       @db.Text
+  createdAt     DateTime      @default(now())
+
+  lineas       PaqueteActividad[]
   invitaciones Invitacion[]
+  archivos     Archivo[]
 
   @@unique([oportunidadId, nombre])
+}
+
+model PaqueteActividad {
+  paqueteId   String
+  paquete     Paquete   @relation(fields: [paqueteId], references: [id], onDelete: Cascade)
+  actividadId String
+  actividad   Actividad @relation(fields: [actividadId], references: [id], onDelete: Cascade)
+
+  @@id([paqueteId, actividadId])
+}
+
+/// Archivos que genera la app (BIMBAU por paquete, control de asignación). Pequeños: viven en la base.
+model Archivo {
+  id            String       @id @default(cuid())
+  oportunidadId String
+  oportunidad   Oportunidad  @relation(fields: [oportunidadId], references: [id], onDelete: Cascade)
+  paqueteId     String?
+  paquete       Paquete?     @relation(fields: [paqueteId], references: [id], onDelete: Cascade)
+  nombre        String
+  tipo          String       // bimbau | control
+  contenido     Bytes
+  createdAt     DateTime     @default(now())
 }
 
 model Proveedor {

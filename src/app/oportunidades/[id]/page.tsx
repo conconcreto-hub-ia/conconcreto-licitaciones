@@ -9,6 +9,7 @@ import { ESTADO_OPORTUNIDAD, RECOMENDACION, ORIGEN } from "@/lib/etiquetas";
 import { cierre, cop, copCorto, fecha, fechaHora } from "@/lib/formato";
 import type { Ficha } from "@/lib/ficha";
 import { decidirEnComite, rehacerFicha } from "@/app/acciones";
+import { Paquetes, type PaqueteVista } from "@/components/paquetes";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,20 @@ export default async function FichaOportunidad({ params }: { params: Promise<{ i
   const rec = o.recomendacion ? RECOMENDACION[o.recomendacion] : null;
   const est = ESTADO_OPORTUNIDAD[o.estado];
   const decidida = ["aprobada", "descartada", "en_cotizacion", "cerrada"].includes(o.estado);
+  const enCotizacion = ["aprobada", "en_cotizacion"].includes(o.estado);
+  const [paquetesDb, archivos, formularios, nActividades] = enCotizacion
+    ? await Promise.all([
+        db.paquete.findMany({ where: { oportunidadId: o.id }, include: { lineas: { include: { actividad: { include: { _count: { select: { paquetes: true } } } } } } }, orderBy: { nombre: "asc" } }),
+        db.archivo.findMany({ where: { oportunidadId: o.id }, select: { id: true, tipo: true, paqueteId: true } }),
+        db.documento.count({ where: { oportunidadId: o.id, tipo: "formulario" } }),
+        db.actividad.count({ where: { oportunidadId: o.id, esCapitulo: false } }),
+      ])
+    : [[], [], 0, 0] as const;
+  const paquetes: PaqueteVista[] = paquetesDb.map((p) => ({
+    id: p.id, nombre: p.nombre, tipo: p.tipo, estado: p.estado, porque: p.porque,
+    archivoId: archivos.find((a) => a.paqueteId === p.id)?.id ?? null,
+    lineas: p.lineas.map((l) => l.actividad).sort((a, b) => a.orden - b.orden).map((a) => ({ id: a.id, codigo: a.codigo, descripcion: a.descripcion, unidad: a.unidad, cantidad: a.cantidad, compartida: a._count.paquetes > 1 })),
+  }));
 
   return (
     <>
@@ -49,6 +64,9 @@ export default async function FichaOportunidad({ params }: { params: Promise<{ i
 
       <Contenedor className="grid gap-8 py-9 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-8">
+          {enCotizacion && (
+            <Paquetes oportunidadId={o.id} tieneFormulario={formularios > 0} actividades={nActividades} paquetes={paquetes} controlId={archivos.find((a) => a.tipo === "control")?.id ?? null} />
+          )}
           {!f ? (
             <Vacio icono={<IconoComite className="size-5" />} titulo="Todavía no tiene ficha" accion={
               <form action={rehacerFicha}><input type="hidden" name="id" value={o.id} /><Boton variante="primario" type="submit">Armar la ficha</Boton></form>
@@ -161,7 +179,7 @@ export default async function FichaOportunidad({ params }: { params: Promise<{ i
               <div className="mt-3">
                 <div className="flex items-center gap-2">{o.estado === "descartada" ? <Insignia tono="neutro">Descartada</Insignia> : <Insignia tono="verde"><IconoCheck className="size-3.5" />Aprobada</Insignia>}</div>
                 {o.decision && <p className="mt-3 text-[14px] text-tinta-2">«{o.decision}»</p>}
-                <p className="mt-2 text-[12.5px] text-tinta-3">{o.decididoPor} · {fechaHora(o.decididoEn)}</p>
+                {o.decididoEn && <p className="mt-2 text-[12.5px] text-tinta-3">{o.decididoPor} · {fechaHora(o.decididoEn)}</p>}
               </div>
             ) : (
               <form action={decidirEnComite} className="mt-3 space-y-3">
