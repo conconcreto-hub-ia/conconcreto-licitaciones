@@ -41,7 +41,7 @@ const enc = encodeURIComponent;
 
 export const agentmail = {
   buzon,
-  listar: (limit = 50) => llamar<{ count: number; messages: MensajeAM[] }>(`/inboxes/${enc(buzon())}/messages?limit=${limit}`),
+  listar: (limit = 50, pageToken?: string) => llamar<{ count: number; next_page_token?: string; messages: MensajeAM[] }>(`/inboxes/${enc(buzon())}/messages?limit=${limit}${pageToken ? `&page_token=${enc(pageToken)}` : ""}`),
   leer: (messageId: string) => llamar<MensajeAM>(`/inboxes/${enc(buzon())}/messages/${enc(messageId)}`),
   adjunto: (messageId: string, attachmentId: string) =>
     llamar<{ download_url?: string; url?: string } & Record<string, unknown>>(`/inboxes/${enc(buzon())}/messages/${enc(messageId)}/attachments/${enc(attachmentId)}`),

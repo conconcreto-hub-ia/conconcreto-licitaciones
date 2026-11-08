@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Boton, Cifra, Insignia, SeccionEt, Tarjeta, Vacio } from "./ui";
-import { IconoPaquete, IconoDocumento, IconoAlerta, IconoCheck } from "./iconos";
-import { proponerPaquetesAhora, confirmarPaquetesAhora } from "@/app/acciones";
+import { IconoPaquete, IconoDocumento, IconoAlerta, IconoCheck, IconoFlecha } from "./iconos";
+import { proponerPaquetesAhora, confirmarPaquetesAhora, moverActividadAhora } from "@/app/acciones";
 
 export type PaqueteVista = {
   id: string;
@@ -14,6 +14,8 @@ export type PaqueteVista = {
   porque: string | null;
   lineas: { id: string; codigo: string | null; descripcion: string; unidad: string | null; cantidad: number | null; compartida: boolean }[];
   archivoId: string | null;
+  /** Si es un suministro que se consolida: lo que sale en el BIMBAU y lo que no se pudo calcular. */
+  consolidado: { lineas: { descripcion: string; unidad: string; cantidad: number; nFuentes: number }[]; pendientes: { codigo: string | null; descripcion: string; motivo: string }[] } | null;
 };
 
 const TIPO = { suministro: "Suministro", servicio: "Servicio", mano_de_obra: "Mano de obra" } as const;
@@ -105,10 +107,45 @@ export function Paquetes(props: { oportunidadId: string; tieneFormulario: boolea
                             <td className="w-12 py-1 font-mono text-tinta-3">{l.codigo}</td>
                             <td className="py-1 pr-2">{l.descripcion}{l.compartida && <span className="ml-1.5 text-[11px] font-semibold text-[#8a5a00]">· compartida</span>}</td>
                             <td className="tabular whitespace-nowrap py-1 text-right text-tinta-2">{l.cantidad?.toLocaleString("es-CO")} {l.unidad}</td>
+                            {!confirmados && (
+                              <td className="w-8 py-1 pl-1">
+                                <span className="relative grid size-6 place-items-center rounded-ctl border border-linea bg-papel text-tinta-3 hover:border-verde hover:text-verde-profundo">
+                                  <IconoFlecha className="pointer-events-none size-3.5" />
+                                  <select
+                                    aria-label="Mover a otro paquete"
+                                    title="Mover a otro paquete"
+                                    disabled={pendiente}
+                                    value=""
+                                    onChange={(e) => { const hacia = e.target.value; if (hacia) correr(() => moverActividadAhora(props.oportunidadId, l.id, p.id, hacia)); }}
+                                    className="absolute inset-0 cursor-pointer opacity-0"
+                                  >
+                                    <option value="">Mover a…</option>
+                                    {props.paquetes.filter((x) => x.id !== p.id).map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+                                  </select>
+                                </span>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                    {p.consolidado && (
+                      <div className="mt-3 rounded-ctl border border-linea bg-fondo p-3">
+                        <div className="font-display text-[11.5px] font-bold uppercase tracking-[.08em] text-verde-profundo">Lo que sale en el BIMBAU · consolidado</div>
+                        <table className="mt-1.5 w-full text-[12.5px]">
+                          <tbody>
+                            {p.consolidado.lineas.map((l) => (
+                              <tr key={l.descripcion}><td className="py-0.5 pr-2 font-semibold">{l.descripcion}</td><td className="tabular whitespace-nowrap py-0.5 text-right font-semibold">{l.cantidad.toLocaleString("es-CO")} {l.unidad}</td></tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {p.consolidado.pendientes.length > 0 && (
+                          <div className="mt-2 space-y-1 border-t border-linea pt-2">
+                            {p.consolidado.pendientes.map((x, i) => <p key={i} className="flex gap-1.5 text-[12px] text-rojo"><IconoAlerta className="mt-0.5 size-3.5" /><span><b className="font-semibold">{x.codigo} {x.descripcion}:</b> {x.motivo} Va transcrita tal cual.</span></p>)}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {p.archivoId && (
                       <div className="mt-3 flex flex-wrap gap-4">
                         <a href={`/paquetes/${p.id}`} className="inline-flex items-center gap-1.5 font-display text-[13px] font-semibold text-verde-profundo hover:underline">Proveedores y cotizaciones →</a>

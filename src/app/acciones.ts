@@ -81,3 +81,9 @@ export async function quitarInvitacion(invitacionId: string, paqueteId: string) 
   await db.invitacion.deleteMany({ where: { id: invitacionId, estado: "borrador" } });
   revalidatePath(`/paquetes/${paqueteId}`);
 }
+
+export async function moverActividadAhora(oportunidadId: string, actividadId: string, desdeId: string, haciaId: string) {
+  const { moverActividad } = await import("@/lib/paquetes");
+  await moverActividad(actividadId, desdeId, haciaId, "Licitaciones");
+  revalidatePath(`/oportunidades/${oportunidadId}`);
+}

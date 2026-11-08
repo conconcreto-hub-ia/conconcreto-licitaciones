@@ -1,0 +1,7 @@
+{
+  "crons": [
+    { "path": "/api/cron/radar", "schedule": "0 12 * * 1-5" },
+    { "path": "/api/cron/recordatorios", "schedule": "0 13 * * 1-5" },
+    { "path": "/api/cron/buzon", "schedule": "0 22 * * 1-5" }
+  ]
+}

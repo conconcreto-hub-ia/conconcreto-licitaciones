@@ -8,7 +8,10 @@
 // El agente propone la agrupación; el código verifica la regla 1 y arma los archivos; Jhon confirma.
 
 import ExcelJS from "exceljs";
+import { Prisma } from "@prisma/client";
 import { db } from "./db";
+import { generarBimbau } from "./bimbau";
+import { consolidar, lineasDelBimbau, type Consolidacion } from "./consolidar";
 import { pedirEstructurado } from "./claude";
 import { leerFormulario } from "./formulario";
 import type { TipoPaquete } from "@prisma/client";
@@ -115,81 +118,91 @@ export async function proponerPaquetes(oportunidadId: string): Promise<Resultado
 
 /* ── Confirmar: los BIMBAU y el control ──────────────────────────────── */
 
-const VERDE = "FF07582B", GRIS = "FFEEF2EE";
+const VERDE = "FF07582B";
 
-/** BIMBAU con las reglas del skill de Jhon: proyecto en D5, duración en D6, encabezados en la fila 11,
- *  ITEM consecutivo, código del cliente como texto, OMNICLASS = ITEM, cantidades a 2 decimales,
- *  capítulos «CAPÍTULO N - <nombre>» y VALOR TOTAL = valor unitario × cantidad.
- *  Es una reconstrucción del formato: cuando esté la plantilla oficial de Conconcreto, se usa esa. */
-async function bimbau(proyecto: string, paquete: string, lineas: { capitulo: string | null; codigo: string | null; descripcion: string; unidad: string | null; cantidad: number | null }[]) {
-  const libro = new ExcelJS.Workbook();
-  const h = libro.addWorksheet("Items_Ofertar", { views: [{ showGridLines: false }] });
-  h.getColumn(2).width = 7; h.getColumn(3).width = 16; h.getColumn(4).width = 70; h.getColumn(5).width = 11;
-  h.getColumn(6).width = 9; h.getColumn(7).width = 13; h.getColumn(8).width = 12; h.getColumn(9).width = 16; h.getColumn(10).width = 18; h.getColumn(11).width = 16;
-  h.getCell("B2").value = "CONCONCRETO · Formulario de cotización"; h.getCell("B2").font = { bold: true, size: 14, color: { argb: VERDE } };
-  h.getCell("B3").value = `Paquete: ${paquete}`; h.getCell("B3").font = { bold: true };
-  h.getCell("C5").value = "Proyecto"; h.getCell("D5").value = proyecto;
-  h.getCell("C6").value = "Duración (días)"; h.getCell("D6").value = null;
-  h.getCell("C8").value = "Diligencie el valor unitario. El valor total se calcula solo."; h.getCell("C8").font = { italic: true, color: { argb: "FF7B847E" } };
-
-  const enc = ["ITEM", "CÓDIGO EMPRESA", "DESCRIPCIÓN", "OMNICLASS", "UNIDAD", "CANTIDAD", "SKU", "VALOR UNITARIO", "VALOR TOTAL", "PRESUPUESTO"];
-  enc.forEach((t, i) => { const c = h.getCell(11, i + 2); c.value = t; c.font = { bold: true, color: { argb: "FFFFFFFF" } }; c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: VERDE } }; c.alignment = { vertical: "middle", horizontal: "center", wrapText: true }; });
-
-  let fila = 12, item = 0, n = 0, capituloActual: string | undefined;
-  for (const l of lineas) {
-    const cap = l.capitulo ?? "Sin capítulo";
-    if (cap !== capituloActual) {
-      capituloActual = cap; n++;
-      const c = h.getCell(fila, 4); c.value = `CAPÍTULO ${n} - ${cap.replace(/^[\d.]+\s*/, "")}`; c.font = { bold: true };
-      for (let col = 2; col <= 11; col++) h.getCell(fila, col).fill = { type: "pattern", pattern: "solid", fgColor: { argb: GRIS } };
-      fila++;
-    }
-    item++;
-    h.getCell(fila, 2).value = item;
-    h.getCell(fila, 3).value = l.codigo ?? String(item); h.getCell(fila, 3).numFmt = "@";
-    h.getCell(fila, 4).value = l.descripcion; h.getCell(fila, 4).alignment = { wrapText: true, vertical: "top" };
-    h.getCell(fila, 5).value = item;
-    h.getCell(fila, 6).value = l.unidad;
-    h.getCell(fila, 7).value = l.cantidad === null ? null : Math.round(l.cantidad * 100) / 100; h.getCell(fila, 7).numFmt = "#,##0.00";
-    h.getCell(fila, 9).numFmt = "$ #,##0";
-    h.getCell(fila, 10).value = { formula: `I${fila}*G${fila}` }; h.getCell(fila, 10).numFmt = "$ #,##0";
-    fila++;
-  }
-  return Buffer.from(await libro.xlsx.writeBuffer());
+/** Lo que sale en el BIMBAU de un paquete: sus actividades tal cual, o las líneas consolidadas si es un suministro. */
+export function lineasDePaquete(p: { nombre: string; tipo: string }, actividades: { id: string; codigo: string | null; descripcion: string; unidad: string | null; cantidad: number | null; orden: number; capitulo: string | null }[]) {
+  const ordenadas = [...actividades].sort((a, b) => a.orden - b.orden);
+  const c = consolidar(p.nombre, p.tipo, ordenadas);
+  if (!c) return { consolidacion: null, lineas: ordenadas.map((a) => ({ capitulo: a.capitulo, codigo: a.codigo, descripcion: a.descripcion, unidad: a.unidad, cantidad: a.cantidad })) };
+  const lineas = lineasDelBimbau(c, ordenadas).map((l) => ({ capitulo: l.transcrita ? "Por confirmar (no se pudo consolidar)" : p.nombre, codigo: l.transcrita ? l.codigo ?? null : null, descripcion: l.descripcion, unidad: l.unidad, cantidad: l.cantidad }));
+  return { consolidacion: c, lineas };
 }
 
 export async function confirmarPaquetes(oportunidadId: string, quien: string) {
   const o = await db.oportunidad.findUniqueOrThrow({ where: { id: oportunidadId } });
   const paquetes = await db.paquete.findMany({ where: { oportunidadId }, include: { lineas: { include: { actividad: true } } }, orderBy: [{ tipo: "asc" }, { nombre: "asc" }] });
   if (!paquetes.length) throw new Error("No hay paquetes propuestos.");
-  if (paquetes.some((p) => p.nombre === "Por asignar")) throw new Error("Quedan actividades por asignar: ubícalas antes de confirmar.");
+  if (paquetes.some((p) => p.nombre === "Por asignar" && p.lineas.length)) throw new Error("Quedan actividades por asignar: ubícalas antes de confirmar.");
 
   const archivos: { nombre: string; tipo: string; paqueteId: string | null; contenido: Buffer }[] = [];
+  const consolidados: { paquete: string; c: Consolidacion }[] = [];
+  const actualizaciones = [];
   for (const p of paquetes) {
-    const lineas = p.lineas.map((l) => l.actividad).sort((a, b) => a.orden - b.orden);
-    archivos.push({ nombre: `Bimbau_${p.nombre}.xlsx`, tipo: "bimbau", paqueteId: p.id, contenido: await bimbau(o.titulo, p.nombre, lineas) });
+    const { consolidacion, lineas } = lineasDePaquete(p, p.lineas.map((l) => l.actividad));
+    if (consolidacion) consolidados.push({ paquete: p.nombre, c: consolidacion });
+    actualizaciones.push(db.paquete.update({ where: { id: p.id }, data: { consolidado: consolidacion ? (consolidacion as object) : Prisma.DbNull } }));
+    archivos.push({ nombre: `Bimbau_${p.nombre}.xlsx`, tipo: "bimbau", paqueteId: p.id, contenido: await generarBimbau(o.titulo, lineas) });
   }
 
-  // El control: el formulario del cliente, línea por línea, con la columna «Paquete».
+  // El control: el formulario del cliente con la columna «Paquete», y una memoria de cálculo por consolidado.
   const todas = await db.actividad.findMany({ where: { oportunidadId }, orderBy: { orden: "asc" }, include: { paquetes: { include: { paquete: true } } } });
   const libro = new ExcelJS.Workbook();
+  const encabezado = (h: ExcelJS.Worksheet) => h.getRow(1).eachCell((c) => { c.font = { bold: true, color: { argb: "FFFFFFFF" } }; c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: VERDE } }; });
   const h = libro.addWorksheet("Control", { views: [{ state: "frozen", ySplit: 1, showGridLines: false }] });
   h.columns = [{ header: "Hoja", width: 14 }, { header: "Código", width: 10 }, { header: "Descripción", width: 64 }, { header: "Unidad", width: 9 }, { header: "Cantidad", width: 13 }, { header: "Paquete", width: 48 }];
-  h.getRow(1).eachCell((c) => { c.font = { bold: true, color: { argb: "FFFFFFFF" } }; c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: VERDE } }; });
+  encabezado(h);
   for (const a of todas) {
     const r = h.addRow([a.hoja, a.codigo, a.descripcion, a.unidad, a.cantidad, a.esCapitulo ? "Capítulo" : a.paquetes.map((x) => x.paquete.nombre).join(" / ")]);
     if (a.esCapitulo) r.font = { bold: true };
     r.getCell(5).numFmt = "#,##0.00";
   }
+  for (const { paquete, c } of consolidados) {
+    const m = libro.addWorksheet(`Calculo_${paquete}`.slice(0, 31), { views: [{ state: "frozen", ySplit: 1, showGridLines: false }] });
+    m.columns = [{ header: "Línea BIMBAU", width: 40 }, { header: "Código cliente", width: 13 }, { header: "Descripción cliente", width: 52 }, { header: "Unidad", width: 9 }, { header: "Cantidad cliente", width: 15 }, { header: "Factor", width: 10 }, { header: "Cantidad calculada", width: 17 }, { header: "Nota", width: 48 }];
+    encabezado(m);
+    for (const l of c.lineas) {
+      for (const f of l.fuentes) m.addRow([l.descripcion, f.codigo, f.descripcion, f.unidad, f.cantidad, f.factor, f.calculada, f.nota]).getCell(7).numFmt = "#,##0.00";
+      const t = m.addRow([`TOTAL ${l.descripcion} (redondeado hacia arriba)`, null, null, l.unidad, null, null, l.cantidad, null]); t.font = { bold: true };
+    }
+    for (const pnd of c.pendientes) m.addRow(["PENDIENTE", pnd.codigo, pnd.descripcion, null, null, null, null, pnd.motivo]).font = { color: { argb: "FFC2410C" } };
+  }
   archivos.push({ nombre: "Control_Asignacion_Paquetes.xlsx", tipo: "control", paqueteId: null, contenido: Buffer.from(await libro.xlsx.writeBuffer()) });
 
   await db.$transaction([
+    ...actualizaciones,
     db.archivo.deleteMany({ where: { oportunidadId } }),
     ...archivos.map((a) => db.archivo.create({ data: { oportunidadId, ...a, contenido: new Uint8Array(a.contenido) } })),
+    db.paquete.deleteMany({ where: { oportunidadId, nombre: "Por asignar" } }),
     db.paquete.updateMany({ where: { oportunidadId }, data: { estado: "confirmado" } }),
     db.oportunidad.update({ where: { id: oportunidadId }, data: { estado: "en_cotizacion" } }),
     db.evento.create({ data: { oportunidadId, actor: "persona", tipo: "paquetes.confirmados", descripcion: `${quien} confirmó ${paquetes.length} paquetes` } }),
-    db.evento.create({ data: { oportunidadId, actor: "agente", tipo: "paquetes.archivos", descripcion: `Armó ${paquetes.length} formularios BIMBAU y el control de asignación` } }),
+    db.evento.create({
+      data: {
+        oportunidadId, actor: "agente", tipo: "paquetes.archivos",
+        descripcion: `Armó ${paquetes.length} formularios BIMBAU sobre la plantilla oficial y el control de asignación${consolidados.length ? ` · consolidó ${consolidados.map((x) => `«${x.paquete}»`).join(", ")}${consolidados.some((x) => x.c.pendientes.length) ? ` (${consolidados.reduce((s, x) => s + x.c.pendientes.length, 0)} actividades pendientes de confirmar)` : ""}` : ""}`,
+      },
+    }),
   ]);
-  return { archivos: archivos.length };
+  return { archivos: archivos.length, consolidados: consolidados.length };
+}
+
+/** Mover una actividad de un paquete a otro antes de confirmar. Si ya estaba en el destino, solo sale del origen. */
+export async function moverActividad(actividadId: string, desdeId: string, haciaId: string, quien: string) {
+  if (desdeId === haciaId) throw new Error("La actividad ya está en ese paquete.");
+  const [desde, hacia, act] = await Promise.all([
+    db.paquete.findUniqueOrThrow({ where: { id: desdeId } }),
+    db.paquete.findUniqueOrThrow({ where: { id: haciaId } }),
+    db.actividad.findUniqueOrThrow({ where: { id: actividadId } }),
+  ]);
+  if (desde.estado === "confirmado" || hacia.estado === "confirmado") throw new Error("Los paquetes ya están confirmados.");
+  if (desde.oportunidadId !== hacia.oportunidadId) throw new Error("Los paquetes son de oportunidades distintas.");
+  await db.$transaction(async (tx) => {
+    await tx.paqueteActividad.delete({ where: { paqueteId_actividadId: { paqueteId: desdeId, actividadId } } });
+    await tx.paqueteActividad.upsert({ where: { paqueteId_actividadId: { paqueteId: haciaId, actividadId } }, update: {}, create: { paqueteId: haciaId, actividadId } });
+    for (const id of [desdeId, haciaId]) await tx.paquete.update({ where: { id }, data: { actividades: await tx.paqueteActividad.count({ where: { paqueteId: id } }) } });
+    // Un paquete que se queda vacío no tiene a quién pedirle cotización.
+    await tx.paquete.deleteMany({ where: { id: desdeId, lineas: { none: {} } } });
+    await tx.evento.create({ data: { oportunidadId: desde.oportunidadId, actor: "persona", tipo: "paquetes.movio", descripcion: `${quien} movió «${act.codigo ?? ""} ${act.descripcion}» de «${desde.nombre}» a «${hacia.nombre}»` } });
+  });
 }

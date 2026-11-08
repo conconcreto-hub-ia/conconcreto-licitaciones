@@ -187,6 +187,19 @@ Gerente de Proyectos · Inversiones Altavista S.A.S.`;
     const archivos = await db.archivo.count({ where: { oportunidadId: inv.id } });
     check(archivos === prop.paquetes + 1, "Un BIMBAU por paquete más el control", `${archivos} archivos (${conf.archivos})`);
     check((await db.oportunidad.findUniqueOrThrow({ where: { id: inv.id } })).estado === "en_cotizacion", "La oportunidad pasó a «Cotizando»");
+    // La consolidación (reglas de Jhon, S3) y la plantilla oficial
+    const concreto = await db.paquete.findFirst({ where: { oportunidadId: inv.id, tipo: "suministro", nombre: { contains: "oncreto" } } });
+    if (concreto) {
+      const c = concreto.consolidado as { lineas: { descripcion: string; cantidad: number }[]; pendientes: unknown[] } | null;
+      const fc28 = c?.lineas.find((l) => /28 MPa$/.test(l.descripcion));
+      check(!!c, "El paquete de concreto salió consolidado", c ? c.lineas.map((l) => `${l.descripcion}: ${l.cantidad}`).join(" | ") : "");
+      check(fc28?.cantidad === 1340, "Concreto f'c 28: 1.340 m³ de las zapatas");
+    } else check(true, "No hubo paquete de suministro de concreto en esta corrida (el agente agrupó distinto)");
+    const ExcelJS = (await import("exceljs")).default;
+    const b = await db.archivo.findFirstOrThrow({ where: { oportunidadId: inv.id, tipo: "bimbau" } });
+    const libro = new ExcelJS.Workbook(); await libro.xlsx.load(new Uint8Array(b.contenido).buffer as ArrayBuffer);
+    check(libro.worksheets.map((w) => w.name).join(",") === "Items_Ofertar,Fecha,Puntaje" && libro.getWorksheet("Puntaje")?.state === "hidden", "El BIMBAU sale sobre la plantilla oficial, con sus hojas ocultas intactas");
+    check(String(libro.getWorksheet("Items_Ofertar")!.getCell("D5").value).length > 5 && /^CAP/.test(String(libro.getWorksheet("Items_Ofertar")!.getCell("B12").value)), "Proyecto en D5 y el primer capítulo en la fila 12");
   }
 
   // ── 6 · Idempotencia ─────────────────────────────────────────────────

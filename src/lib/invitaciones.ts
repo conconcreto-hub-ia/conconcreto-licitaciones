@@ -13,6 +13,7 @@ import { db } from "./db";
 import { agentmail, type MensajeAM } from "./agentmail";
 import { pedirEstructurado } from "./claude";
 import { fecha, cop } from "./formato";
+import { lineasDePaquete } from "./paquetes";
 
 const MAX_RECORDATORIOS = 2;
 
@@ -211,7 +212,10 @@ export async function cuadroComparativo(paqueteId: string) {
     where: { id: paqueteId },
     include: { lineas: { include: { actividad: true } }, invitaciones: { include: { proveedor: true, cotizacion: true } } },
   });
-  const actividades = paquete.lineas.map((l) => l.actividad).sort((a, b) => a.orden - b.orden);
+  // Las filas del cuadro son las mismas líneas que el proveedor vio en su BIMBAU: las actividades tal
+  // cual, o las líneas consolidadas si el paquete es un suministro de concreto, acero o bloques.
+  const { lineas } = lineasDePaquete(paquete, paquete.lineas.map((l) => l.actividad));
+  const actividades = lineas.map((l, i) => ({ id: `${paqueteId}-${i}`, codigo: l.codigo ?? String(i + 1), descripcion: l.descripcion, unidad: l.unidad, cantidad: l.cantidad }));
   const cotizaron = paquete.invitaciones.filter((i) => i.cotizacion);
   type Item = { codigo: string | null; unitario: number | null; subtotal: number | null };
   const filas = actividades.map((a, idx) => {

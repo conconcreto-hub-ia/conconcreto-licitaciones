@@ -8,8 +8,10 @@ import { db } from "@/lib/db";
 import { ESTADO_OPORTUNIDAD, RECOMENDACION, ORIGEN } from "@/lib/etiquetas";
 import { cierre, cop, copCorto, fecha, fechaHora } from "@/lib/formato";
 import type { Ficha } from "@/lib/ficha";
-import { decidirEnComite, rehacerFicha } from "@/app/acciones";
+import { rehacerFicha } from "@/app/acciones";
+import { FormComite } from "@/components/comite";
 import { Paquetes, type PaqueteVista } from "@/components/paquetes";
+import { lineasDePaquete } from "@/lib/paquetes";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +39,10 @@ export default async function FichaOportunidad({ params }: { params: Promise<{ i
     id: p.id, nombre: p.nombre, tipo: p.tipo, estado: p.estado, porque: p.porque,
     archivoId: archivos.find((a) => a.paqueteId === p.id)?.id ?? null,
     lineas: p.lineas.map((l) => l.actividad).sort((a, b) => a.orden - b.orden).map((a) => ({ id: a.id, codigo: a.codigo, descripcion: a.descripcion, unidad: a.unidad, cantidad: a.cantidad, compartida: a._count.paquetes > 1 })),
+    consolidado: (() => {
+      const c = lineasDePaquete(p, p.lineas.map((l) => l.actividad)).consolidacion;
+      return c ? { lineas: c.lineas.map((l) => ({ descripcion: l.descripcion, unidad: l.unidad, cantidad: l.cantidad, nFuentes: l.fuentes.length })), pendientes: c.pendientes.map((x) => ({ codigo: x.codigo, descripcion: x.descripcion, motivo: x.motivo })) } : null;
+    })(),
   }));
 
   return (
@@ -182,15 +188,7 @@ export default async function FichaOportunidad({ params }: { params: Promise<{ i
                 {o.decididoEn && <p className="mt-2 text-[12.5px] text-tinta-3">{o.decididoPor} · {fechaHora(o.decididoEn)}</p>}
               </div>
             ) : (
-              <form action={decidirEnComite} className="mt-3 space-y-3">
-                <input type="hidden" name="id" value={o.id} />
-                <textarea name="nota" rows={3} placeholder="Nota del comité (obligatoria para descartar)" className="w-full resize-none rounded-ctl border border-linea bg-fondo px-3 py-2.5 text-[14px] outline-none placeholder:text-tinta-3 focus:border-verde" />
-                <div className="grid grid-cols-2 gap-2">
-                  <Boton type="submit" name="decision" value="aprobar" variante="primario">Presentarse</Boton>
-                  <Boton type="submit" name="decision" value="descartar" variante="peligro">Descartar</Boton>
-                </div>
-                <p className="text-[12.5px] leading-snug text-tinta-3">{o.origen === "secop" ? "Al aprobar, el siguiente paso es reenviar los pliegos del SECOP al buzón del agente, con el código del proceso en el asunto." : "Al aprobar, el siguiente paso es armar los paquetes de cotización con los documentos que llegaron."}</p>
-              </form>
+              <FormComite id={o.id} ayuda={o.origen === "secop" ? "Al aprobar, el siguiente paso es reenviar los pliegos del SECOP al buzón del agente, con el código del proceso en el asunto." : "Al aprobar, el siguiente paso es armar los paquetes de cotización con los documentos que llegaron."} />
             )}
           </Tarjeta>
 

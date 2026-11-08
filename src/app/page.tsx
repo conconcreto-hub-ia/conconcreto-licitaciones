@@ -1,17 +1,34 @@
 import { Barra } from "@/components/barra";
 import { Cifra, Contenedor, Encabezado, SeccionEt, Vacio, BotonLink } from "@/components/ui";
 import { IconoRadar } from "@/components/iconos";
-import { FilaOportunidad } from "@/components/oportunidad";
+import { FilaOportunidad, tituloDe } from "@/components/oportunidad";
+import { TablaCotizaciones, enRiesgo, type PaqueteEnCurso } from "@/components/cotizaciones";
 import { db } from "@/lib/db";
 import { copCorto, diasHasta, haceCuanto } from "@/lib/formato";
 
 export const dynamic = "force-dynamic";
 
 export default async function Inicio() {
-  const [oportunidades, ultimaCorrida] = await Promise.all([
+  const [oportunidades, ultimaCorrida, paquetesDb] = await Promise.all([
     db.oportunidad.findMany({ orderBy: [{ encaje: { sort: "desc", nulls: "last" } }, { fechaCierre: "asc" }] }),
     db.corridaRadar.findFirst({ orderBy: { createdAt: "desc" } }),
+    db.paquete.findMany({
+      where: { estado: "confirmado", oportunidad: { estado: "en_cotizacion" }, invitaciones: { some: {} } },
+      include: { oportunidad: { select: { titulo: true, ficha: true } }, invitaciones: { select: { estado: true } } },
+    }),
   ]);
+  const enCurso: PaqueteEnCurso[] = paquetesDb
+    .map((p) => {
+      const inv = p.invitaciones;
+      return {
+        id: p.id, nombre: p.nombre, oportunidad: tituloDe(p.oportunidad), fechaLimite: p.fechaLimite,
+        invitados: inv.filter((i) => i.estado !== "borrador").length, cotizaron: inv.filter((i) => i.estado === "cotizo").length,
+        declinaron: inv.filter((i) => i.estado === "declino").length, pendientes: inv.filter((i) => ["enviada", "recordada", "respondida"].includes(i.estado)).length,
+        porAprobar: inv.filter((i) => i.estado === "borrador").length,
+      };
+    })
+    .sort((a, b) => Number(enRiesgo(b)) - Number(enRiesgo(a)) || (a.fechaLimite?.getTime() ?? Infinity) - (b.fechaLimite?.getTime() ?? Infinity));
+  const riesgo = enCurso.filter(enRiesgo).length;
 
   const abiertas = oportunidades.filter((o) => !["descartada", "cerrada"].includes(o.estado) && (diasHasta(o.fechaCierre) ?? 1) >= 0);
   const paraComite = abiertas.filter((o) => ["nueva", "analizada", "en_comite"].includes(o.estado));
@@ -27,7 +44,7 @@ export default async function Inicio() {
         <Contenedor className="pb-10 pt-8">
           <div className="flex flex-wrap items-center gap-2.5 text-[13px] font-semibold uppercase tracking-[.08em] text-white/75">
             <span className="punto-vivo" />
-            {ultimaCorrida ? `Radar · última corrida ${haceCuanto(ultimaCorrida.createdAt)} · ${ultimaCorrida.revisados} procesos revisados` : "El radar todavía no ha corrido"}
+            {ultimaCorrida ? `Radar · última corrida ${haceCuanto(ultimaCorrida.createdAt)} · ${ultimaCorrida.revisados ? `${ultimaCorrida.revisados} procesos revisados` : "sin procesos nuevos en el SECOP"}` : "El radar todavía no ha corrido"}
           </div>
           <h1 className="mt-4 max-w-[860px] text-[34px] font-extrabold leading-[1.08] text-white sm:text-[44px]">
             Lo que vale la pena <span className="dorado">licitar esta semana</span>
@@ -37,6 +54,7 @@ export default async function Inicio() {
             <Cifra oscuro valor={recomendadas} rotulo="El agente recomienda presentarse" />
             <Cifra oscuro valor={estaSemana} rotulo="Cierran en 7 días o menos" />
             <Cifra oscuro valor={copCorto(valor)} rotulo="Valor en estudio" />
+            {riesgo > 0 && <Cifra oscuro valor={riesgo} rotulo="Paquetes en riesgo" nota="cierran pronto con pocas cotizaciones" />}
           </div>
         </Contenedor>
       </Barra>
@@ -48,6 +66,13 @@ export default async function Inicio() {
           </Vacio>
         ) : (
           <>
+            {enCurso.length > 0 && (
+              <section className="space-y-4">
+                <Encabezado et="Cotizaciones en curso" titulo={riesgo ? `${riesgo} ${riesgo === 1 ? "paquete" : "paquetes"} en riesgo` : `${enCurso.length} ${enCurso.length === 1 ? "paquete cotizando" : "paquetes cotizando"}`} bajada="En riesgo es lo que deja de recibir cotizaciones en 7 días o menos y todavía no tiene tres. Es el tablero que bocetó el área de licitaciones." />
+                <TablaCotizaciones paquetes={enCurso} />
+              </section>
+            )}
+
             <section className="space-y-4">
               <Encabezado et="Para el comité" titulo={`${paraComite.length} por decidir`} bajada="Ordenadas por qué tanto encajan con lo que Conconcreto hace y gana. La recomendación es del agente; la decisión es del comité." />
               <div className="space-y-3">{paraComite.map((o) => <FilaOportunidad key={o.id} o={o} />)}</div>

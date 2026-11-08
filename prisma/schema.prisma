@@ -172,6 +172,9 @@ model Paquete {
   nombre        String
   estado        EstadoPaquete @default(propuesto)
   porque        String?       @db.Text // por qué estas actividades van juntas (qué proveedor las cotiza)
+  /// Si es un suministro consolidado (concreto, acero, bloques): las líneas calculadas del BIMBAU con su
+  /// memoria de cálculo y lo que quedó pendiente. Se fija al confirmar. Ver src/lib/consolidar.ts.
+  consolidado   Json?
   actividades   Int           @default(0)
   fechaLimite   DateTime?     // hasta cuándo reciben cotizaciones los proveedores
   notas         String?       @db.Text

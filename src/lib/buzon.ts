@@ -85,7 +85,18 @@ export type ResultadoBuzon = { revisados: number; nuevos: number; oportunidades:
 export async function revisarBuzon(): Promise<ResultadoBuzon> {
   const r: ResultadoBuzon = { revisados: 0, nuevos: 0, oportunidades: 0, pliegos: 0, proveedores: 0, ignorados: 0 };
   const propio = agentmail.buzon().toLowerCase();
-  const { messages } = await agentmail.listar(50);
+  // De lo más nuevo a lo más viejo, página por página, hasta una página donde ya no hay nada nuevo.
+  const messages: Awaited<ReturnType<typeof agentmail.listar>>["messages"] = [];
+  let token: string | undefined;
+  for (let pagina = 0; pagina < 20; pagina++) {
+    const r = await agentmail.listar(50, token);
+    const conocidos = await db.correo.count({ where: { mensajeId: { in: r.messages.map((m) => m.message_id) } } });
+    messages.push(...r.messages);
+    const propios = r.messages.filter((m) => partirRemitente(m.from).correo === propio).length; // lo que envió el agente
+    if (!r.next_page_token || conocidos + propios >= r.messages.length) break;
+    token = r.next_page_token;
+  }
+  messages.reverse(); // se procesan en el orden en que llegaron
 
   for (const resumen of messages) {
     r.revisados++;
