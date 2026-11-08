@@ -1,0 +1,257 @@
+// Licitaciones de punta a punta · Conconcreto x irrelevant
+//
+// Dos puertas de entrada que terminan en el mismo flujo:
+//   A · una invitación privada que llega por correo (reenviada desde Outlook al buzón del agente)
+//   B · un proceso público que el radar encuentra en el SECOP (vía Croma)
+//
+// Cada paso que da el agente o una persona queda en `Evento`: es lo que hace visible la agencia.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Origen {
+  invitacion // puerta A
+  secop      // puerta B
+}
+
+enum EstadoOportunidad {
+  nueva          // recién entró, sin analizar
+  analizada      // tiene ficha de go/no-go
+  en_comite      // esperando decisión
+  aprobada       // el comité dijo que sí
+  descartada     // el comité dijo que no (con razón)
+  en_cotizacion  // paquetes armados, proveedores invitados
+  cerrada        // se presentó la oferta o venció
+}
+
+enum Recomendacion {
+  go
+  revisar
+  no_go
+}
+
+enum TipoPaquete {
+  suministro
+  servicio
+  mano_de_obra
+}
+
+enum EstadoInvitacion {
+  borrador   // redactada, falta aprobación
+  aprobada   // Jhon la aprobó, sale en el próximo ciclo
+  enviada
+  recordada  // se mandó al menos un recordatorio
+  respondida // el proveedor escribió algo (pregunta o cotización)
+  cotizo
+  declino
+}
+
+enum Actor {
+  agente
+  persona
+  sistema
+}
+
+/// Lo que le interesa a Conconcreto. Lo usa el radar del SECOP. Arranca con supuestos
+/// tomados de las llamadas de venta y lo ajusta el área de licitaciones.
+model Criterio {
+  id               String   @id @default(cuid())
+  nombre           String
+  activo           Boolean  @default(true)
+  palabrasClave    String[]
+  excluir          String[] // palabras que descartan un proceso (ej. "interventoría")
+  departamentos    String[] // vacío = todo el país
+  modalidades      String[] // tal como las escribe el SECOP
+  codigosUnspsc    String[]
+  montoMinimo      BigInt?
+  montoMaximo      BigInt?
+  tipologia        String   // la tipología interna de Conconcreto (vías, puentes, acueducto…)
+  notas            String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  oportunidades Oportunidad[]
+}
+
+model Oportunidad {
+  id               String            @id @default(cuid())
+  codigo           String            @unique // CO1.NTC… en el SECOP · INV-AAAA-NNN en invitaciones
+  origen           Origen
+  estado           EstadoOportunidad @default(nueva)
+  titulo           String
+  objeto           String?           @db.Text
+  entidad          String            // entidad pública o cliente privado
+  entidadNit       String?
+  departamento     String?
+  municipio        String?
+  modalidad        String?
+  tipologia        String?
+  valorEstimado    BigInt?           // presupuesto oficial o estimado, en COP
+  fechaPublicacion DateTime?
+  fechaCierre      DateTime?         // cierre de la oferta
+  urlFuente        String?
+  contacto         String?           // quién invitó (puerta A)
+
+  // La ficha de go/no-go
+  recomendacion    Recomendacion?
+  encaje           Int?              // 0-100
+  ficha            Json?             // razones, mercado, competidores, riesgos
+  fichaGeneradaEn  DateTime?
+
+  // El comité
+  decision         String?           @db.Text
+  decididoPor      String?
+  decididoEn       DateTime?
+
+  criterioId       String?
+  criterio         Criterio?         @relation(fields: [criterioId], references: [id], onDelete: SetNull)
+  raw              Json?             // la respuesta original de la fuente
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  paquetes  Paquete[]
+  eventos   Evento[]
+  correos   Correo[]
+  documentos Documento[]
+
+  @@index([estado])
+  @@index([origen, createdAt])
+}
+
+model Documento {
+  id            String      @id @default(cuid())
+  oportunidadId String
+  oportunidad   Oportunidad @relation(fields: [oportunidadId], references: [id], onDelete: Cascade)
+  nombre        String
+  tipo          String      // formulario, plano, especificacion, pliego, adenda, otro
+  url           String?     // dónde quedó guardado
+  tamano        Int?
+  correoId      String?     // de qué correo salió
+  createdAt     DateTime    @default(now())
+}
+
+model Paquete {
+  id            String      @id @default(cuid())
+  oportunidadId String
+  oportunidad   Oportunidad @relation(fields: [oportunidadId], references: [id], onDelete: Cascade)
+  tipo          TipoPaquete
+  nombre        String
+  actividades   Int         @default(0)
+  fechaLimite   DateTime?   // hasta cuándo reciben cotizaciones los proveedores
+  notas         String?     @db.Text
+  createdAt     DateTime    @default(now())
+
+  invitaciones Invitacion[]
+
+  @@unique([oportunidadId, nombre])
+}
+
+model Proveedor {
+  id          String   @id @default(cuid())
+  nombre      String
+  nit         String?  @unique
+  correo      String?
+  telefono    String?
+  ciudad      String?
+  actividades String[] // qué cotiza: concreto, acero, red eléctrica…
+  fuente      String   @default("base") // base interna, croma, manual
+  // Verificación pública (Croma): contratos ejecutados y sanciones
+  contratosPublicos Int?
+  sancionado        Boolean?
+  verificadoEn      DateTime?
+  notas       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invitaciones Invitacion[]
+}
+
+model Invitacion {
+  id           String           @id @default(cuid())
+  paqueteId    String
+  paquete      Paquete          @relation(fields: [paqueteId], references: [id], onDelete: Cascade)
+  proveedorId  String
+  proveedor    Proveedor        @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
+  estado       EstadoInvitacion @default(borrador)
+  hiloId       String?          // thread de AgentMail
+  enviadaEn    DateTime?
+  recordatorios Int             @default(0)
+  ultimaActividad DateTime?
+  createdAt    DateTime         @default(now())
+
+  cotizacion Cotizacion?
+
+  @@unique([paqueteId, proveedorId])
+}
+
+model Cotizacion {
+  id           String     @id @default(cuid())
+  invitacionId String     @unique
+  invitacion   Invitacion @relation(fields: [invitacionId], references: [id], onDelete: Cascade)
+  valorTotal   BigInt?
+  plazoDias    Int?
+  validezDias  Int?
+  items        Json?      // normalizado contra el BIMBAU
+  observaciones String?   @db.Text
+  archivo      String?
+  recibidaEn   DateTime   @default(now())
+}
+
+/// Todo correo que entra o sale del buzón del agente.
+model Correo {
+  id               String       @id @default(cuid())
+  mensajeId        String       @unique // id de AgentMail
+  hiloId           String?
+  direccion        String       // entrante | saliente
+  de               String
+  para             String
+  asunto           String
+  resumen          String?      @db.Text
+  esReenvio        Boolean      @default(false)
+  remitenteOriginal String?     // el cliente que invitó, sacado del cuerpo del reenvío
+  autorizado       Boolean      @default(false) // solo los reenvíos de remitentes autorizados abren oportunidades
+  procesado        Boolean      @default(false)
+  oportunidadId    String?
+  oportunidad      Oportunidad? @relation(fields: [oportunidadId], references: [id], onDelete: SetNull)
+  recibidoEn       DateTime     @default(now())
+}
+
+/// La bitácora. Cada cosa que hace el agente o una persona sobre una oportunidad.
+model Evento {
+  id            String       @id @default(cuid())
+  oportunidadId String?
+  oportunidad   Oportunidad? @relation(fields: [oportunidadId], references: [id], onDelete: Cascade)
+  actor         Actor
+  tipo          String       // radar.encontro, ficha.generada, comite.aprobo, correo.recibido…
+  descripcion   String
+  datos         Json?
+  createdAt     DateTime     @default(now())
+
+  @@index([oportunidadId, createdAt])
+  @@index([createdAt])
+}
+
+/// Quién puede abrir una oportunidad reenviando un correo al buzón.
+model RemitenteAutorizado {
+  id        String   @id @default(cuid())
+  correo    String   @unique
+  nombre    String
+  createdAt DateTime @default(now())
+}
+
+/// Cada corrida del radar, para saber desde cuándo buscar la próxima vez.
+model CorridaRadar {
+  id          String   @id @default(cuid())
+  desde       DateTime
+  hasta       DateTime
+  revisados   Int      @default(0)
+  nuevos      Int      @default(0)
+  creditos    Int      @default(0) // gasto en Croma
+  error       String?  @db.Text
+  createdAt   DateTime @default(now())
+}
