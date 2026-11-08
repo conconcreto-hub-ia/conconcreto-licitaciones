@@ -41,8 +41,8 @@ export default async function FichaOportunidad({ params }: { params: Promise<{ i
           <div className="mt-7 flex flex-wrap gap-x-12 gap-y-6">
             <Cifra oscuro valor={copCorto(o.valorEstimado)} rotulo="Presupuesto oficial" nota={cop(o.valorEstimado)} />
             <Cifra oscuro valor={o.fechaCierre ? fecha(o.fechaCierre) : "—"} rotulo={cierre(o.fechaCierre)} />
-            {f && <Cifra oscuro valor={pct(f.mercado.entidad.descuentoMediano)} rotulo="Descuento con que se gana" nota={`mediana de ${f.mercado.entidad.obrasAdjudicadas} obras de la entidad`} />}
-            {f && <Cifra oscuro valor={f.mercado.entidad.oferentesPromedio?.toLocaleString("es-CO") ?? "—"} rotulo="Oferentes en promedio" nota="en las obras de esta entidad" />}
+            {f?.mercado && <Cifra oscuro valor={pct(f.mercado.entidad.descuentoMediano)} rotulo="Descuento con que se gana" nota={`mediana de ${f.mercado.entidad.obrasAdjudicadas} obras de la entidad`} />}
+            {f?.mercado && <Cifra oscuro valor={f.mercado.entidad.oferentesPromedio?.toLocaleString("es-CO") ?? "—"} rotulo="Oferentes en promedio" nota="en las obras de esta entidad" />}
           </div>
         </Contenedor>
       </Barra>
@@ -105,8 +105,27 @@ export default async function FichaOportunidad({ params }: { params: Promise<{ i
                 </Tarjeta>
               </div>
 
+              {/* Lo que trajo la invitación */}
+              {(f.recibidos?.length || f.faltantes?.length) ? (
+                <section className="space-y-3">
+                  <SeccionEt>Documentos de la invitación</SeccionEt>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Tarjeta className="p-5">
+                      <h3 className="text-[15.5px] font-bold">Llegaron</h3>
+                      <ul className="mt-3 space-y-2 pl-0">{(f.recibidos ?? []).map((d, i) => <li key={i} className="flex list-none gap-2 text-[14px] text-tinta-2"><IconoCheck className="mt-0.5 text-verde" />{d}</li>)}</ul>
+                    </Tarjeta>
+                    <Tarjeta className="p-5">
+                      <h3 className="text-[15.5px] font-bold">Faltan para cotizar</h3>
+                      {(f.faltantes ?? []).length === 0 ? <p className="mt-3 text-[14px] text-tinta-3">No falta nada.</p> : (
+                        <ul className="mt-3 space-y-2 pl-0">{(f.faltantes ?? []).map((d, i) => <li key={i} className="flex list-none gap-2 text-[14px] text-tinta-2"><IconoAlerta className="mt-0.5 text-rojo" />{d}</li>)}</ul>
+                      )}
+                    </Tarjeta>
+                  </div>
+                </section>
+              ) : null}
+
               {/* El mercado */}
-              <section className="space-y-3">
+              {f.mercado && <section className="space-y-3">
                 <SeccionEt>El mercado de esta entidad</SeccionEt>
                 <Tarjeta className="overflow-hidden">
                   <div className="flex items-center gap-2 border-b border-linea px-5 py-3.5"><IconoTendencia className="text-verde-profundo" /><h3 className="text-[15px] font-bold">Quién le gana obras a {o.entidad.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase())}</h3></div>
@@ -129,7 +148,7 @@ export default async function FichaOportunidad({ params }: { params: Promise<{ i
                     <Dato k="Mayores contratos">{f.mercado.conconcreto.mayores.map((m) => `${m.entidad.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase())} (${copCorto(m.valor)})`).join(" · ")}</Dato>
                   </dl>
                 </Tarjeta>
-              </section>
+              </section>}
             </>
           )}
         </div>
@@ -177,7 +196,7 @@ export default async function FichaOportunidad({ params }: { params: Promise<{ i
             <SeccionEt>Bitácora</SeccionEt>
             <div className="mt-4"><Bitacora eventos={o.eventos} /></div>
           </Tarjeta>
-          {f && <div className="flex flex-wrap gap-2"><Chip>Ficha: {f.modelo}</Chip><Chip>{f.mercado.creditos} créditos de Croma</Chip></div>}
+          {f && <div className="flex flex-wrap gap-2"><Chip>Ficha: {f.modelo}</Chip>{f.mercado && <Chip>{f.mercado.creditos} créditos de Croma</Chip>}</div>}
         </aside>
       </Contenedor>
     </>

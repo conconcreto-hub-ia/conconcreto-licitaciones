@@ -51,3 +51,11 @@ export async function rehacerFicha(formData: FormData) {
   revalidatePath(`/oportunidades/${id}`);
   revalidatePath("/");
 }
+
+export async function revisarBuzonAhora() {
+  const { revisarBuzon } = await import("@/lib/buzon");
+  const r = await revisarBuzon();
+  revalidatePath("/");
+  revalidatePath("/buzon");
+  return r;
+}

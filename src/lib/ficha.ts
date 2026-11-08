@@ -8,8 +8,7 @@ import { db } from "./db";
 import { leerMercado, type Mercado } from "./mercado";
 import type { ProcesoSecop } from "./croma";
 import type { Recomendacion } from "@prisma/client";
-
-const MODELO = process.env.MODELO_FICHA || "claude-sonnet-5-5";
+import { MODELO, pedirEstructurado } from "./claude";
 
 export type FichaIA = {
   titulo_corto: string;
@@ -22,7 +21,10 @@ export type FichaIA = {
   preguntas_comite: string[];
 };
 
-export type Ficha = FichaIA & { mercado: Mercado; modelo: string };
+/** `mercado` solo existe en los procesos del SECOP; una invitación privada no tiene histórico público. */
+export type Ficha = FichaIA & { mercado: Mercado | null; modelo: string; faltantes?: string[]; recibidos?: string[] };
+
+export const etiquetaRecomendacion = (r: Recomendacion) => (r === "go" ? "presentarse" : r === "no_go" ? "no presentarse" : "revisar en comité");
 
 const HERRAMIENTA = {
   name: "entregar_ficha",
@@ -82,23 +84,13 @@ export async function generarFicha(oportunidadId: string): Promise<Ficha> {
     mercado,
   };
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": process.env.ANTHROPIC_API_KEY!, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({
-      model: MODELO,
-      max_tokens: 4000,
-      output_config: { effort: "low" },
-      system: SISTEMA,
-      tools: [HERRAMIENTA],
-      messages: [{ role: "user", content: `Datos del proceso y del mercado (calculados por código):\n\n${JSON.stringify(entrada, null, 1)}` }],
-    }),
+  const ia = await pedirEstructurado<FichaIA>({
+    sistema: SISTEMA,
+    herramienta: HERRAMIENTA,
+    usuario: `Datos del proceso y del mercado (calculados por código):
+
+${JSON.stringify(entrada, null, 1)}`,
   });
-  if (!res.ok) throw new Error(`Claude respondió ${res.status}: ${(await res.text()).slice(0, 400)}`);
-  const json = (await res.json()) as { content: { type: string; name?: string; input?: unknown; text?: string }[] };
-  const uso = json.content.find((c) => c.type === "tool_use" && c.name === HERRAMIENTA.name);
-  if (!uso?.input) throw new Error("Claude no entregó la ficha con la herramienta.");
-  const ia = uso.input as FichaIA;
 
   const ficha: Ficha = { ...ia, encaje: Math.max(0, Math.min(100, Math.round(ia.encaje))), mercado, modelo: MODELO };
 
@@ -113,7 +105,7 @@ export async function generarFicha(oportunidadId: string): Promise<Ficha> {
     db.evento.create({
       data: {
         oportunidadId: o.id, actor: "agente", tipo: "ficha.generada",
-        descripcion: `Armó la ficha de go/no-go · recomienda «${ficha.recomendacion === "go" ? "presentarse" : ficha.recomendacion === "no_go" ? "no presentarse" : "revisar en comité"}»`,
+        descripcion: `Armó la ficha de go/no-go · recomienda «${etiquetaRecomendacion(ficha.recomendacion)}»`,
         datos: { encaje: ficha.encaje, creditos: mercado.creditos },
       },
     }),
