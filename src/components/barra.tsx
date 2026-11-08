@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 import { Marca, Contenedor } from "./ui";
 
 // El menú vive aquí y en ningún otro sitio.
@@ -13,7 +14,7 @@ export const NAV = [
   { href: "/criterios", etiqueta: "Criterios" },
 ] as const;
 
-export function Barra({ agenteActivo = true }: { agenteActivo?: boolean }) {
+export function Barra({ agenteActivo = true, children }: { agenteActivo?: boolean; children?: ReactNode }) {
   const ruta = usePathname();
   const activo = (href: string) => (href === "/" ? ruta === "/" || ruta.startsWith("/oportunidades") : ruta.startsWith(href));
 
@@ -29,7 +30,7 @@ export function Barra({ agenteActivo = true }: { agenteActivo?: boolean }) {
         </div>
       </Contenedor>
       <Contenedor>
-        <nav className="-mb-px mt-5 flex gap-1 overflow-x-auto pb-[3px]" aria-label="Principal">
+        <nav className={"mt-5 flex gap-1 overflow-x-auto " + (children ? "border-b border-white/10" : "pb-[3px]")} aria-label="Principal">
           {NAV.map((n) => (
             <Link
               key={n.href}
@@ -40,11 +41,12 @@ export function Barra({ agenteActivo = true }: { agenteActivo?: boolean }) {
               }
             >
               {n.etiqueta}
-              {activo(n.href) && <span className="absolute inset-x-3.5 bottom-0 h-[3px] rounded-t-full bg-white" />}
+              {activo(n.href) && <span className="absolute inset-x-3.5 bottom-0 h-[2px] rounded-t-full bg-oro" />}
             </Link>
           ))}
         </nav>
       </Contenedor>
+      {children}
     </header>
   );
 }

@@ -2,7 +2,7 @@
 
 type P = { className?: string };
 const base = (className?: string) => ({
-  className: className ?? "size-4",
+  className: className && /(^|\s)size-/.test(className) ? className : `size-4 shrink-0 ${className ?? ""}`,
   viewBox: "0 0 24 24",
   fill: "none",
   stroke: "currentColor",
