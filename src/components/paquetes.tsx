@@ -109,7 +109,12 @@ export function Paquetes(props: { oportunidadId: string; tieneFormulario: boolea
                         ))}
                       </tbody>
                     </table>
-                    {p.archivoId && <a href={`/api/archivos/${p.archivoId}`} className="mt-3 inline-flex items-center gap-1.5 font-display text-[13px] font-semibold text-verde-profundo hover:underline"><IconoDocumento />Descargar BIMBAU</a>}
+                    {p.archivoId && (
+                      <div className="mt-3 flex flex-wrap gap-4">
+                        <a href={`/paquetes/${p.id}`} className="inline-flex items-center gap-1.5 font-display text-[13px] font-semibold text-verde-profundo hover:underline">Proveedores y cotizaciones →</a>
+                        <a href={`/api/archivos/${p.archivoId}`} className="inline-flex items-center gap-1.5 font-display text-[13px] font-semibold text-tinta-2 hover:underline"><IconoDocumento />BIMBAU</a>
+                      </div>
+                    )}
                   </div>
                 </details>
               </Tarjeta>

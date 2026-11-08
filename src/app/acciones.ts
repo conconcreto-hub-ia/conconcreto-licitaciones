@@ -55,3 +55,29 @@ export async function confirmarPaquetesAhora(oportunidadId: string) {
   revalidatePath("/");
   return r;
 }
+
+export async function sugerirProveedoresAhora(paqueteId: string) {
+  const { sugerirProveedores } = await import("@/lib/proveedores");
+  const r = await sugerirProveedores(paqueteId);
+  revalidatePath(`/paquetes/${paqueteId}`);
+  return r;
+}
+
+export async function aprobarYEnviarAhora(paqueteId: string) {
+  const { aprobarYEnviar } = await import("@/lib/invitaciones");
+  const r = await aprobarYEnviar(paqueteId, "Licitaciones");
+  revalidatePath(`/paquetes/${paqueteId}`);
+  return r;
+}
+
+export async function recordatoriosAhora(paqueteId: string) {
+  const { enviarRecordatorios } = await import("@/lib/invitaciones");
+  const r = await enviarRecordatorios(0);
+  revalidatePath(`/paquetes/${paqueteId}`);
+  return r;
+}
+
+export async function quitarInvitacion(invitacionId: string, paqueteId: string) {
+  await db.invitacion.deleteMany({ where: { id: invitacionId, estado: "borrador" } });
+  revalidatePath(`/paquetes/${paqueteId}`);
+}
