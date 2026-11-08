@@ -61,3 +61,11 @@ export function cierre(d: Date | string | null | undefined): string {
   if (n === 1) return "Cierra mañana";
   return `Cierra en ${n} días`;
 }
+
+/** «GOBERNACION DEL MAGDALENA» → «Gobernacion Del Magdalena»: los nombres del SECOP llegan en mayúsculas sostenidas. */
+export function nombrePropio(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/(^|[\s.(/-])\S/g, (c) => c.toUpperCase())
+    .replace(/(?<=\s)(S\.?a\.?s\.?|S\.?a\.?|Ltda\.?)(?=\s|$)/gi, (m) => m.toUpperCase());
+}

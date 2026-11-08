@@ -3,7 +3,7 @@ import type { Oportunidad, Evento } from "@prisma/client";
 import { Encaje, Insignia, Tarjeta } from "./ui";
 import { IconoAgente, IconoPersona, IconoReloj, IconoRadar, IconoReenvio } from "./iconos";
 import { ESTADO_OPORTUNIDAD, RECOMENDACION } from "@/lib/etiquetas";
-import { cierre, copCorto, diasHasta, haceCuanto } from "@/lib/formato";
+import { cierre, copCorto, diasHasta, haceCuanto, nombrePropio } from "@/lib/formato";
 import type { Ficha } from "@/lib/ficha";
 
 export const tituloDe = (o: Pick<Oportunidad, "titulo" | "ficha">) => (o.ficha as Ficha | null)?.titulo_corto ?? o.titulo;
@@ -37,7 +37,7 @@ export function FilaOportunidad({ o }: { o: Oportunidad }) {
             <span className="truncate text-[13px] text-tinta-3">{o.departamento ?? "Sin ubicación"}</span>
           </div>
           <h3 className="mt-1.5 text-[17px] font-bold leading-snug">{tituloDe(o)}</h3>
-          <p className="mt-1 truncate text-[13.5px] text-tinta-2">{o.entidad}</p>
+          <p className="mt-1 truncate text-[13.5px] text-tinta-2">{nombrePropio(o.entidad)}</p>
         </div>
         <div className="flex flex-col items-start gap-1.5">
           {rec ? <Insignia tono={rec.tono} punto>{rec.etiqueta}</Insignia> : <Insignia tono={est.tono}>{est.etiqueta}</Insignia>}

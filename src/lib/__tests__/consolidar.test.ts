@@ -34,3 +34,12 @@ describe("lo que no se consolida", () => {
   it("la mano de obra de concreto", () => expect(consolidar("Mano de obra de estructura en concreto", "mano_de_obra", [])).toBeNull());
   it("un suministro que no es concreto, acero ni bloques", () => expect(consolidar("Columnas prefabricadas", "suministro", [])).toBeNull());
 });
+
+import { nombrePropio } from "../formato";
+describe("nombres del SECOP", () => {
+  it("pasa de mayúsculas sostenidas a nombre propio y respeta la sigla de la sociedad", () => {
+    expect(nombrePropio("GOBERNACION DEL MAGDALENA")).toBe("Gobernacion Del Magdalena");
+    expect(nombrePropio("SERVICIOS INTEGRADOS NP SAS")).toBe("Servicios Integrados Np SAS");
+    expect(nombrePropio("VIVAC SEGURIDAD LTDA")).toBe("Vivac Seguridad LTDA");
+  });
+});
