@@ -7,7 +7,8 @@ export const APP = { nombre: "Licitaciones", descripcion: "Del SECOP y las invit
 export type ItemNav = { href: string; etiqueta: string; icono: IconoMenu; soloAdmin?: boolean; tambien?: string[] };
 
 export const NAV: ItemNav[] = [
-  { href: "/", etiqueta: "Oportunidades", icono: "inicio", tambien: ["/oportunidades", "/paquetes"] },
+  { href: "/", etiqueta: "Oportunidades", icono: "inicio", tambien: ["/oportunidades"] },
+  { href: "/procesos", etiqueta: "En curso", icono: "procesos", tambien: ["/paquetes"] },
   { href: "/radar", etiqueta: "Radar SECOP", icono: "radar" },
   { href: "/buzon", etiqueta: "Buzón", icono: "buzon" },
   { href: "/proveedores", etiqueta: "Proveedores", icono: "proveedores" },

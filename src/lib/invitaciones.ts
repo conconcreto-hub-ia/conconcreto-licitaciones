@@ -68,7 +68,7 @@ export async function aprobarYEnviar(paqueteId: string, quien: string) {
     });
     await db.$transaction([
       db.invitacion.update({ where: { id: inv.id }, data: { estado: "enviada", hiloId: envio.thread_id, enviadaEn: new Date(), ultimaActividad: new Date() } }),
-      db.correo.create({ data: { mensajeId: envio.message_id, hiloId: envio.thread_id, direccion: "saliente", de: agentmail.buzon(), para: correo, asunto: `Invitación a cotizar · ${paquete.nombre}`, resumen: texto.slice(0, 600), procesado: true, autorizado: true, oportunidadId: o.id } }),
+      db.correo.create({ data: { mensajeId: envio.message_id, hiloId: envio.thread_id, direccion: "saliente", de: agentmail.buzon(), para: correo, asunto: `Invitación a cotizar · ${paquete.nombre}`, resumen: texto.slice(0, 600), procesado: true, autorizado: true, oportunidadId: o.id, proveedorId: inv.proveedorId } }),
     ]);
     enviadas++;
   }
@@ -152,7 +152,7 @@ export async function procesarRespuestaProveedor(m: MensajeAM, correoId: string,
   const estado = esCotizacion ? "cotizo" : clas.tipo === "declina" ? "declino" : "respondida";
   await db.$transaction([
     db.invitacion.update({ where: { id: inv.id }, data: { estado, ultimaActividad: new Date() } }),
-    db.correo.update({ where: { id: correoId }, data: { procesado: true, oportunidadId: inv.paquete.oportunidadId } }),
+    db.correo.update({ where: { id: correoId }, data: { procesado: true, oportunidadId: inv.paquete.oportunidadId, proveedorId: inv.proveedorId } }),
     ...(esCotizacion
       ? [db.cotizacion.upsert({
           where: { invitacionId: inv.id },
@@ -175,7 +175,7 @@ export async function procesarRespuestaProveedor(m: MensajeAM, correoId: string,
   if (puedeEnviarA(remitente)) {
     const acuse = esCotizacion ? "Recibimos su cotización. Gracias." : clas.tipo === "declina" ? "Entendido, gracias por avisarnos." : "Recibimos su mensaje: el equipo de licitaciones le responde en este mismo hilo.";
     const r = await agentmail.responder(m.message_id, { text: `${acuse}\n\nLicitaciones · Conconcreto` });
-    await db.correo.create({ data: { mensajeId: r.message_id, hiloId: r.thread_id, direccion: "saliente", de: agentmail.buzon(), para: remitente, asunto: `RE: ${m.subject ?? ""}`, resumen: acuse, procesado: true, autorizado: true, oportunidadId: inv.paquete.oportunidadId } });
+    await db.correo.create({ data: { mensajeId: r.message_id, hiloId: r.thread_id, direccion: "saliente", de: agentmail.buzon(), para: remitente, asunto: `RE: ${m.subject ?? ""}`, resumen: acuse, procesado: true, autorizado: true, oportunidadId: inv.paquete.oportunidadId, proveedorId: inv.proveedorId } });
   }
   return true;
 }
@@ -198,7 +198,7 @@ export async function enviarRecordatorios(horasSinRespuesta = 48, paqueteId?: st
     const r = await agentmail.responder(ultimo.mensajeId, { text: texto, to: [inv.proveedor.correo] });
     await db.$transaction([
       db.invitacion.update({ where: { id: inv.id }, data: { estado: "recordada", recordatorios: { increment: 1 }, ultimaActividad: new Date() } }),
-      db.correo.create({ data: { mensajeId: r.message_id, hiloId: r.thread_id, direccion: "saliente", de: agentmail.buzon(), para: inv.proveedor.correo, asunto: `Recordatorio · ${inv.paquete.nombre}`, resumen: texto, procesado: true, autorizado: true, oportunidadId: inv.paquete.oportunidadId } }),
+      db.correo.create({ data: { mensajeId: r.message_id, hiloId: r.thread_id, direccion: "saliente", de: agentmail.buzon(), para: inv.proveedor.correo, asunto: `Recordatorio · ${inv.paquete.nombre}`, resumen: texto, procesado: true, autorizado: true, oportunidadId: inv.paquete.oportunidadId, proveedorId: inv.proveedorId } }),
       db.evento.create({ data: { oportunidadId: inv.paquete.oportunidadId, actor: "agente", tipo: "proveedor.recordatorio", descripcion: `Le recordó a ${inv.proveedor.nombre} la invitación de «${inv.paquete.nombre}» (recordatorio ${inv.recordatorios + 1} de ${MAX_RECORDATORIOS})` } }),
     ]);
     enviados++;

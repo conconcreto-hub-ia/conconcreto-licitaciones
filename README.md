@@ -31,6 +31,17 @@ Oportunidad + ficha + acuse en el hilo     │
            Cuadro comparativo. El agente no adjudica: decide una persona.
 ```
 
+## En curso y el buzón
+
+- **`/procesos`, «En curso»:** cada licitación aprobada con sus ocho etapas (entró, ficha, comité, pliegos y
+  cantidades, paquetes, invitaciones, cotizaciones, comparar y adjudicar) y, arriba, **«Te necesitan»**: lo que solo
+  puede hacer una persona (decidir, reenviar el formulario, confirmar paquetes, aprobar invitaciones, contestar a un
+  proveedor, comparar y adjudicar). Lo calcula `src/lib/procesos.ts`, puro y con pruebas.
+- **`/procesos/[id]`, el hilo:** todo lo que pasó en esa licitación, eventos del agente, decisiones de personas y
+  correos, por día y con filtro.
+- **El buzón se filtra** por licitación, proveedor y dirección (en la URL). Cada correo del hilo de una invitación
+  guarda su proveedor (`Correo.proveedorId`); los anteriores al 8-nov se enlazan con `npx tsx scripts/enlazar-correos.ts`.
+
 ## Correr
 
 ```bash

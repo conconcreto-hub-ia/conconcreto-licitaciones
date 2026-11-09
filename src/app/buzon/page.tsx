@@ -7,12 +7,27 @@ import { IconoCorreo, IconoReenvio, IconoAgente, IconoEscudo } from "@/component
 import { BotonBuzon } from "./boton";
 import { db } from "@/lib/db";
 import { fechaHora } from "@/lib/formato";
+import type { Prisma } from "@prisma/client";
+import { FiltrosBuzon } from "./filtros";
+import { tituloDe } from "@/components/oportunidad";
 
 export const dynamic = "force-dynamic";
 
-export default async function Buzon() {
+export default async function Buzon({ searchParams }: { searchParams: Promise<{ licitacion?: string; proveedor?: string; dir?: string }> }) {
   const yo = await exigirSesion();
-  const correos = await db.correo.findMany({ orderBy: { recibidoEn: "desc" }, take: 60, include: { oportunidad: { select: { id: true, codigo: true } } } });
+  const { licitacion, proveedor, dir } = await searchParams;
+  const where: Prisma.CorreoWhereInput = {
+    ...(licitacion === "ninguna" ? { oportunidadId: null } : licitacion ? { oportunidadId: licitacion } : {}),
+    ...(proveedor ? { proveedorId: proveedor } : {}),
+    ...(dir === "entrante" || dir === "saliente" ? { direccion: dir } : {}),
+  };
+  const filtrando = !!(licitacion || proveedor || dir);
+  const [correos, total, conCorreos, proveedoresConCorreos] = await Promise.all([
+    db.correo.findMany({ where, orderBy: { recibidoEn: "desc" }, take: filtrando ? 200 : 60, include: { oportunidad: { select: { id: true, codigo: true, titulo: true, ficha: true } }, proveedor: { select: { id: true, nombre: true } } } }),
+    db.correo.count({ where }),
+    db.oportunidad.findMany({ where: { correos: { some: {} } }, select: { id: true, codigo: true, titulo: true, ficha: true }, orderBy: { updatedAt: "desc" } }),
+    db.proveedor.findMany({ where: { correos: { some: {} } }, select: { id: true, nombre: true }, orderBy: { nombre: "asc" } }),
+  ]);
   const buzon = process.env.AGENTMAIL_INBOX;
 
   return (
@@ -34,9 +49,17 @@ export default async function Buzon() {
 
       <Contenedor className="grid gap-8 py-10 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="min-w-0 space-y-4">
-          <Encabezado et="Correos" titulo="Lo que ha pasado por el buzón" />
+          <Encabezado et="Correos" titulo={filtrando ? `${total} ${total === 1 ? "correo" : "correos"} con este filtro` : "Lo que ha pasado por el buzón"} />
+          <Tarjeta className="p-4">
+            <FiltrosBuzon
+              licitaciones={conCorreos.map((o) => ({ v: o.id, e: `${o.codigo} · ${tituloDe(o)}` }))}
+              proveedores={proveedoresConCorreos.map((p) => ({ v: p.id, e: p.nombre }))}
+            />
+          </Tarjeta>
           {correos.length === 0 ? (
-            <Vacio icono={<IconoCorreo className="size-5" />} titulo="Todavía no ha llegado nada">Reenvía una invitación al buzón y pulsa «Revisar el buzón ahora».</Vacio>
+            filtrando
+              ? <Vacio icono={<IconoCorreo className="size-5" />} titulo="Ningún correo con este filtro">Prueba con otra licitación u otro proveedor, o limpia los filtros.</Vacio>
+              : <Vacio icono={<IconoCorreo className="size-5" />} titulo="Todavía no ha llegado nada">Reenvía una invitación al buzón y pulsa «Revisar el buzón ahora».</Vacio>
           ) : (
             <Tarjeta className="divide-y divide-linea-2">
               {correos.map((c) => (
@@ -51,8 +74,9 @@ export default async function Buzon() {
                     </div>
                     <p className="m-0 mt-0.5 truncate text-[13px] text-tinta-2">{c.direccion === "saliente" ? `El agente le respondió a ${c.para}` : `${c.de}${c.remitenteOriginal ? ` · original de ${c.remitenteOriginal}` : ""}`}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {c.direccion === "entrante" && (c.autorizado ? <Insignia tono="verde">Autorizado</Insignia> : <Insignia tono="oro">Sin autorizar · solo se guardó</Insignia>)}
-                      {c.oportunidad && <Link href={`/oportunidades/${c.oportunidad.id}`}><Insignia tono="noche">{c.oportunidad.codigo}</Insignia></Link>}
+                      {c.direccion === "entrante" && (c.proveedor ? <Insignia tono="verde">Respuesta del proveedor</Insignia> : c.autorizado ? <Insignia tono="verde">Autorizado</Insignia> : <Insignia tono="oro">Sin autorizar · solo se guardó</Insignia>)}
+                      {c.oportunidad && <Link href={`/buzon?licitacion=${c.oportunidad.id}`} title={`Ver solo los correos de ${tituloDe(c.oportunidad)}`}><Insignia tono="noche">{c.oportunidad.codigo}</Insignia></Link>}
+                      {c.proveedor && <Link href={`/buzon?proveedor=${c.proveedor.id}`} title="Ver solo los correos de este proveedor"><Insignia tono="neutro">{c.proveedor.nombre}</Insignia></Link>}
                     </div>
                   </div>
                 </div>

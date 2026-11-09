@@ -227,6 +227,7 @@ model Proveedor {
   updatedAt   DateTime @updatedAt
 
   invitaciones Invitacion[]
+  correos      Correo[]
 }
 
 model Invitacion {
@@ -276,7 +277,13 @@ model Correo {
   procesado        Boolean      @default(false)
   oportunidadId    String?
   oportunidad      Oportunidad? @relation(fields: [oportunidadId], references: [id], onDelete: SetNull)
+  /// El proveedor del hilo (invitación, su respuesta, el acuse y los recordatorios). Para filtrar el buzón.
+  proveedorId      String?
+  proveedor        Proveedor?   @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
   recibidoEn       DateTime     @default(now())
+
+  @@index([oportunidadId, recibidoEn])
+  @@index([proveedorId, recibidoEn])
 }
 
 /// La bitácora. Cada cosa que hace el agente o una persona sobre una oportunidad.
@@ -360,7 +367,8 @@ model IntentoIngreso {
   @@index([correo, createdAt])
 }
 
-/// Los pases del panel ya usados: cada uno entra una sola vez.
+/// SIN USO desde el 9-nov-2026: era para entrar desde el hub, y cada app quedó con su propio inicio de sesión.
+/// Se puede borrar con `npx prisma db push --accept-data-loss` cuando se decida (solo guarda pases viejos).
 model PaseUsado {
   jti      String   @id
   expiraEn DateTime
